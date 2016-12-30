@@ -1,22 +1,54 @@
-/// <reference path="../typings/index.d.ts" />
-import types=require("../dist/types")
-import mocha=require("mocha")
-import chai = require("chai");
-import assert = chai.assert;
+"use strict";
+import types = require("../src/types");
+var chai = require("chai");
+var assert = chai.assert;
+var point = {
+    id: "Point",
+    properties: {
+        "x": types.TYPE_NUMBER,
+        "y": types.TYPE_NUMBER,
+    }
+};
+var NameAndPoint = {
+    id: "NameAndPoint", properties: {
+        name: types.TYPE_STRING,
+        location: point
+    }
+};
 
-describe("JSON Schemas testing",function() {
+describe("Simple bindings tests", function () {
     it("schema with reference, example is valid", function () {
-        var tp = ps.parseJSON("SomeType", {
-            type: '{"$schema":"http://json-schema.org/draft-04/schema","type":"object","properties":{"parentName":{"type":"string"},"child":{"$ref":"./content/jsonschemetest/test1/scheme.json#"}}}'
-        });
-
-        assert.isTrue(tp.validate({parentName:"someName",child:{childName:"anotherName"}}).isOk());
+        var c:any = {};
+        var b = types.binding(c, point);
+        b.binding("x").set(5);
+        b.binding("y").set(2);
+        assert(c.x == 5, "Binding sets");
+        assert(c.y == 2, "Binding sets");
+        assert(b.binding("x").get() == 5);
+        assert(b.binding("x").type() == types.TYPE_NUMBER);
     });
-    it("schema with reference, example is invalid", function () {
-        var tp = ps.parseJSON("SomeType", {
-            type: '{"$schema":"http://json-schema.org/draft-04/schema","type":"object","properties":{"parentName":{"type":"string"},"child":{"$ref":"./content/jsonschemetest/test1/scheme.json#"}}}'
-        });
-
-        assert.isTrue(!tp.validate({parentName:"someName",child:{childName1:"anotherName"}}).isOk());
+    it("Nested binding", function () {
+        var c:any = {};
+        var b = types.binding(c, NameAndPoint);
+        b.binding("location.x").set(5);
+        b.binding("location.y").set(2);
+        assert(c.location.x == 5, "Binding sets");
+        assert(c.location.y == 2, "Binding sets");
+        assert(b.binding("location.x").get() == 5);
+        assert(b.binding("location.x").type() == types.TYPE_NUMBER);
     });
-})
+
+    it("Listening to changes", function () {
+        var c:any = {};
+        var b = types.binding(c, NameAndPoint);
+        var ec=0;
+        b.addListener({
+            valueChanged(c:types.ChangeEvent){
+                ec++;
+            }
+        })
+        b.binding("location.x").set(5);
+        b.binding("location.y").set(2);
+        assert(ec==3,"3 changes expected")
+    });
+});
