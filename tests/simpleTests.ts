@@ -30,8 +30,8 @@ describe("Simple bindings tests", function () {
     it("Nested binding", function () {
         var c:any = {};
         var b = types.binding(c, NameAndPoint);
-        b.binding("location.x").set(5);
-        b.binding("location.y").set(2);
+        b.put("location.x",5);
+        b.put("location.y",2);
         assert(c.location.x == 5, "Binding sets");
         assert(c.location.y == 2, "Binding sets");
         assert(b.binding("location.x").get() == 5);
@@ -50,5 +50,6 @@ describe("Simple bindings tests", function () {
         b.binding("location.x").set(5);
         b.binding("location.y").set(2);
         assert(ec==3,"3 changes expected")
+        assert(b.get("location.x") == 5);
     });
 });

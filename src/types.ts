@@ -58,7 +58,7 @@ export interface IBinding {
     removeListener(v:IValueListener)
 }
 
-class Binding implements IBinding{
+export class Binding implements IBinding{
 
     _type:any;
     _parent:Binding;
@@ -79,7 +79,10 @@ class Binding implements IBinding{
         return TYPE_ANY;
     }
 
-    get(){
+    get(p?:string){
+        if (p){
+            return this.binding(p).get();
+        }
         return this.value;
     }
 
@@ -166,9 +169,12 @@ class Binding implements IBinding{
         }
         return this.localBinding(p);
     }
+    put(id:string,v:any){
+        this.binding(id).set(v);
+    }
 }
 
-export function binding(v:any,t:Type):IBinding{
+export function binding(v:any,t:Type):Binding{
     var rs=new Binding(t.id);
     rs.value=v;
     rs._type=t;
