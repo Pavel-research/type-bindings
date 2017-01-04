@@ -18,6 +18,28 @@ var NameAndPoint = {
     }
 };
 
+var Node={
+    id:"Node",
+    properties:{
+        label:types.TYPE_STRING
+    },
+    type:types.TYPE_OBJECT,
+    children: "elements"
+
+}
+Node.properties["elements"]=types.array(Node);
+
+var Node1={
+    id:"Node",
+    properties:{
+        label:types.TYPE_STRING
+    },
+    type:types.TYPE_OBJECT,
+
+
+}
+Node1.properties["elements"]=types.array(Node);
+
 
 var SimpleMap:types.MapType={
     id:"Map",
@@ -216,6 +238,13 @@ describe("Simple bindings tests", function () {
         assert(label=="Company: Some company")
     })
     it("children", function(){
-
+        var q={"label":"A",elements:[{label:"B"},{label:"C"}]}
+        var children=types.service.children(q,Node);
+        assert(children.length==2)
+    })
+    it("children 2", function(){
+        var q={"label":"A",elements:[{label:"B"},{label:"C"}]}
+        var children=types.service.children(q,Node1);
+        assert(children.length==2)
     })
 });

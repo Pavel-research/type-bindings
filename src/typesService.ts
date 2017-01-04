@@ -193,16 +193,16 @@ export class TypeService {
         if (m.children){
             var ch=m.children;
             if (typeof ch=="string"){
-                if (m[ch]){
-                    return m[ch];
+                if (v[ch]){
+                    return v[ch];
                 }
                 return [];
             }
             else{
                 var res=[];
                 ch.forEach(x=>{
-                    if (m[x]){
-                        res=res.concat(m[x]);
+                    if (v[x]){
+                        res=res.concat(v[x]);
                     }
 
                 })
@@ -216,8 +216,8 @@ export class TypeService {
                     var at=<types.ArrayType>x.type;
                     if (this.isObject(<types.Type>at.itemType)){
                         var q=x.id;
-                        if (m[q]){
-                            res=res.concat(m[q]);
+                        if (v[q]){
+                            res=res.concat(v[q]);
                         }
                     }
                 }
@@ -225,8 +225,8 @@ export class TypeService {
                     var mt=<types.MapType>x.type;
                     if (this.isObject(<types.Type>mt.componentType)){
                         var q=x.id;
-                        if (m[q]){
-                            res=res.concat(m[q]);
+                        if (v[q]){
+                            res=res.concat(v[q]);
                         }
                     }
                 }
