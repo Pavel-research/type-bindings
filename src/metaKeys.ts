@@ -19,6 +19,11 @@ export interface Label{
 export interface TreeProp{
     children?: string | string[]
 }
+export interface GroupBy{
+    defaultGroupBy?:string
+    possibleGroupings?: string[]
+}
+
 
 export interface DefaultColumns{
     columns?: string[]

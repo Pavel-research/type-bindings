@@ -18,6 +18,7 @@ var NameAndPoint = {
     }
 };
 
+
 var SimpleMap:types.MapType={
     id:"Map",
     type: types.TYPE_MAP,
@@ -213,5 +214,8 @@ describe("Simple bindings tests", function () {
         var man={name:"Some company"};
         var label=types.service.label(man,company);
         assert(label=="Company: Some company")
+    })
+    it("children", function(){
+
     })
 });

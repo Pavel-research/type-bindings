@@ -188,6 +188,53 @@ export class TypeService {
         return t.displayName;
     }
 
+    children(v:any,t:types.Type):any[]{
+        var m:metakeys.TreeProp=<any>this.resolvedType(t);
+        if (m.children){
+            var ch=m.children;
+            if (typeof ch=="string"){
+                if (m[ch]){
+                    return m[ch];
+                }
+                return [];
+            }
+            else{
+                var res=[];
+                ch.forEach(x=>{
+                    if (m[x]){
+                        res=res.concat(m[x]);
+                    }
+
+                })
+                return res;
+            }
+        }
+        else{
+            var res=[];
+            this.visibleProperties(t).forEach(x=>{
+                if (this.isArray(x.type)){
+                    var at=<types.ArrayType>x.type;
+                    if (this.isObject(<types.Type>at.itemType)){
+                        var q=x.id;
+                        if (m[q]){
+                            res=res.concat(m[q]);
+                        }
+                    }
+                }
+                if (this.isMap(x.type)){
+                    var mt=<types.MapType>x.type;
+                    if (this.isObject(<types.Type>mt.componentType)){
+                        var q=x.id;
+                        if (m[q]){
+                            res=res.concat(m[q]);
+                        }
+                    }
+                }
+            })
+            return res;
+        }
+    }
+
     visibleProperties(t: types.ObjectType&metakeys.VisibleProperties): types.Property[] {
         if (t.visibleProperties) {
             return this.allProperties(t).filter(x => {
