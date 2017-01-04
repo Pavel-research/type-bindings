@@ -1,5 +1,6 @@
 "use strict";
 import types = require("../src/types");
+import {metakeys} from "../src/types";
 var chai = require("chai");
 var assert = chai.assert;
 var point = {
@@ -15,6 +16,65 @@ var NameAndPoint = {
         location: point
     }
 };
+
+var SimpleMap:types.MapType={
+    id:"Map",
+    type: types.TYPE_MAP,
+    componentType: types.TYPE_STRING
+}
+
+var Points:types.MapType={
+    id:"Map",
+    type: types.TYPE_MAP,
+    componentType: point
+}
+
+var Person: types.ObjectType={
+    id:"Person",
+    properties:{
+        name: types.TYPE_STRING,
+        lastName: types.TYPE_STRING
+    },
+    required:["name","lastName"]
+}
+
+var Manager: types.ObjectType={
+    id: "Manager",
+    type: Person,
+    properties:{
+        manages:types.array(Person)
+    }
+}
+
+var ManagerWithId: types.ObjectType&metakeys.VisibleProperties={
+    id: "Manager",
+    type: Manager,
+    properties:{
+        id: types.TYPE_NUMBER
+    },
+    hiddenProperties:["id"]
+}
+
+var company: types.ObjectType&metakeys.PropertyGroups={
+    id:"Company",
+    type: types.TYPE_OBJECT,
+    properties:{
+        name: types.TYPE_STRING,
+        ceo: Manager,
+        cto: Manager,
+        people: types.array(Person),
+        earnings: types.TYPE_NUMBER,
+        spendings: types.TYPE_STRING,
+        is_public: types.TYPE_BOOLEAN,
+        has_shares: types.TYPE_BOOLEAN
+    },
+    required:["name","ceo","cto"],
+    propertyGroups:{
+        "Generic":["name","earnings","spendings"],
+        "Management":["ceo","cto"],
+        "People":["people"]
+    }
+}
 
 describe("Simple bindings tests", function () {
     it("schema with reference, example is valid", function () {
@@ -52,4 +112,94 @@ describe("Simple bindings tests", function () {
         assert(ec==3,"3 changes expected")
         assert(b.get("location.x") == 5);
     });
+    it("Map type", function () {
+        var c:any = {};
+        var b = types.binding(c, SimpleMap);
+        var ec=0;
+        b.binding("location").set("5");
+        assert(b.get("location") == "5");
+        assert(b.binding("location").type()==types.TYPE_STRING)
+        assert(c.location="5");
+    });
+    it("Map type2", function () {
+        var c:any = {};
+        var b = types.binding(c, Points);
+        var ec=0;
+        b.binding("M1.x").set("5");
+        b.binding("M1.y").set("6");
+        assert(b.get("M1.$key")=="M1")
+        b.binding("M1.$key").set("Moscow");
+        assert(b.get("Moscow.y") == "6");
+        assert(b.get("Moscow.$key") == "Moscow");
+        //assert(b.binding("location").type()==types.TYPE_STRING)
+        assert(c.Moscow!=null);
+    });
+    it("Map type3", function () {
+        var c:any = {};
+        var b = types.binding(c, Points);
+        var ec=0;
+        b.addListener({
+            valueChanged(c:types.ChangeEvent){
+                ec++;
+            }
+        })
+        b.add({$key:"Moscow",x:4,y:3})
+        assert(c.Moscow!=null);
+        assert(c.Moscow.x==4);
+        assert(ec==1)
+    });
+    it("Map type4", function () {
+        var c:any = {};
+        var b = types.binding(c, SimpleMap);
+        var ec=0;
+        b.addListener({
+            valueChanged(c:types.ChangeEvent){
+                ec++;
+            }
+        })
+        b.add({$key:"Moscow",$value:"good"})
+        assert(c.Moscow!=null);
+        assert(c.Moscow=="good");
+        assert(ec==1)
+        b.replace({$key:"Moscow",$value:"good"},{$key:"Novosibirsk","$value":"Even better"})
+        assert(c.Moscow==null);
+        assert(c.Novosibirsk=="Even better");
+        assert(ec==2)
+    });
+    it("resolved type", function () {
+        var m:types.ObjectType&any=types.service.resolvedType(Manager);
+        assert(m.properties.name!=null);
+        assert(m.properties.lastName!=null);
+    })
+    it("required & visible properties", function () {
+        var op=types.service.allProperties(Manager);
+        op.forEach(x=>{
+            if (x.id=="name"){
+                assert(x.required);
+            }
+            else if (x.id=="lastName"){
+                assert(x.required);
+            }
+            else{
+                assert(!x.required)
+            }
+        })
+        assert(op.length==3)
+        var qp=types.service.visibleProperties(Manager);
+        assert(qp.length==3)
+        qp=types.service.visibleProperties(ManagerWithId);
+        assert(qp.length==3)
+    })
+    it ("property groups",function () {
+        var op=types.service.propertyGroups(company);
+        assert(op.length==3);
+    })
+    it ("property groups1",function () {
+        var op=types.service.propertyGroups(Manager);
+        assert(op.length==2);
+    })
+    it ("property groups2",function () {
+        var op=types.service.propertyGroups(ManagerWithId);
+        assert(op.length==2);
+    })
 });

@@ -4,6 +4,7 @@
     "module": "commonjs",
     "declaration": true,
     "noImplicitAny": false,
+    "lib": ["es2015"],
     "moduleResolution": "node",
     "removeComments": true,
     "sourceMap": true,
