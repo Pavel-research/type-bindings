@@ -3,6 +3,7 @@ import types = require("../src/types");
 import {metakeys} from "../src/types";
 var chai = require("chai");
 var assert = chai.assert;
+import  mocha=require("mocha")
 var point = {
     id: "Point",
     properties: {
@@ -29,13 +30,14 @@ var Points:types.MapType={
     componentType: point
 }
 
-var Person: types.ObjectType={
+var Person: types.ObjectType&metakeys.Label={
     id:"Person",
     properties:{
         name: types.TYPE_STRING,
         lastName: types.TYPE_STRING
     },
-    required:["name","lastName"]
+    required:["name","lastName"],
+    label:"${name} ${lastName}"
 }
 
 var Manager: types.ObjectType={
@@ -201,5 +203,15 @@ describe("Simple bindings tests", function () {
     it ("property groups2",function () {
         var op=types.service.propertyGroups(ManagerWithId);
         assert(op.length==2);
+    })
+    it("label",function () {
+        var man={name:"Denis",lastName:"Denisenko",manages:[{}]};
+        var label=types.service.label(man,ManagerWithId);
+        assert(label=="Denis Denisenko")
+    })
+    it("label 2",function () {
+        var man={name:"Some company"};
+        var label=types.service.label(man,company);
+        assert(label=="Company: Some company")
     })
 });

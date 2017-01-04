@@ -30,17 +30,26 @@ const GENERIC_GROUP="Generic";
 const ADVANCED_GROUP="Advanced";
 const OTHER_GROUP="Other";
 
-
+function interpolate(str:string,props:any) {
+    return str.replace(/\${(\w+)\}/g, function(match, expr) {
+        return (props )[expr];
+    });
+}
 function setupGroups(ps:types.Property[],t:types.Type){
+    if (!ps){
+        return;
+    }
     var allProperties:Map<string,types.Property>=new Map();
     if ((<metakeys.PropertyGroups>t).propertyGroups){
         var pc=(<metakeys.PropertyGroups>t).propertyGroups;
         Object.keys(pc).forEach(x=>{
             pc[x].forEach(y=>{
-                var ss=ps.find(p=>p.id==y)
-                if (ss){
-                    ss.groupId=x;
-                }
+                ps.forEach(p=>{
+                    if (p.id==y){
+                        p.groupId=x;
+                    }
+                })
+
             })
         })
     }
@@ -150,6 +159,33 @@ export class TypeService {
             return [];
         }
         return <types.Type[]>this.resolvedType(t).type;
+    }
+
+    label(v:any,t:types.Type):string{
+        var m:metakeys.Label=<any>this.resolvedType(t);
+        if (m.label){
+            if (typeof m.label=="function"){
+                return m.label(v);
+            }
+            else{
+                if (m.label.indexOf("{")!=-1){
+                    return interpolate(m.label,v);
+                }
+                else{
+                    return v[m.label];
+                }
+            }
+        }
+        if (v.name){
+            return t.displayName+": "+v.name;
+        }
+        else if (v.title){
+            return t.displayName+": "+v.title;
+        }
+        else if (v.label){
+            return t.displayName+": "+v.label;
+        }
+        return t.displayName;
     }
 
     visibleProperties(t: types.ObjectType&metakeys.VisibleProperties): types.Property[] {
@@ -285,6 +321,9 @@ export class TypeService {
         })
         apply(mm, t);
         mm.$resolved = true;
+        if (!t.displayName){
+            t.displayName=t.id
+        }
         Object.freeze(mm);
         this.typeMap.set(t, mm);
 
