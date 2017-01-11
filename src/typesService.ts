@@ -360,6 +360,9 @@ export class TypeService {
         }
     }
     getValue(t:types.Type,target:any,name:string,bnd?:types.IGraphPoint){
+        if (!target){
+            return null;
+        }
         var prop=this.property(t,name);
         if (prop){
             var func:types.FunctionalValue=prop.type;
@@ -370,6 +373,7 @@ export class TypeService {
                 return types.calcExpression(func.computeFunction,bnd);
             }
         }
+
         var val=target[name];
         if (val){
             if (typeof val=="function"){
