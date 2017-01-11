@@ -1,6 +1,6 @@
 {
   "name": "raml-type-bindings",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "private": false,
   "scripts": {
     "compile": "rm -rf dist/ && ./node_modules/typescript/bin/tsc"
@@ -26,6 +26,8 @@
     "dist"
   ],
   "dependencies": {
-    "@types/node": "^6.0.55"
+    "@types/node": "^6.0.55",
+    "@types/pluralize": "0.0.27",
+    "pluralize": "^3.1.0"
   }
 }
