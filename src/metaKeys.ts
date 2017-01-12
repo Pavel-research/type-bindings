@@ -18,6 +18,8 @@ export interface Label{
 export interface KeyProp{
     keyProp?: string
 }
+
+
 export interface TreeProp{
     children?: string | string[]
 }
@@ -51,7 +53,7 @@ export interface Ordered{
 import types=require("./types")
 
 export interface HasValidator{
-    instanceValidator?:types.InstanceValidator
+    instanceValidator?:types.InstanceValidator| string| string[]
     overrideDefaultValidators?:boolean
     errorMessage?: string
 }

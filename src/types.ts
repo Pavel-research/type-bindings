@@ -136,6 +136,7 @@ export interface Status {
 export interface IGraphPoint {
     get(): any
     id(): string
+    path(): string
     type(): Type
     parent(): IGraphPoint
     root(): IGraphPoint
@@ -585,11 +586,12 @@ export class CompositeValidator implements InstanceValidator {
         var warns = sts.filter(x => x.severity == Severity.WARNING);
         sts = sts.filter(x => x.severity != Severity.WARNING);
         if (sts.length > 0) {
-            if (this._errorMessage) {
-                return error(message);
-            }
             var message = sts.map(x => x.message).join(", ");
-            return error(message);
+            if (this._errorMessage) {
+                return error(ts.interpolate(this._errorMessage,b.type()),sts[0].path);
+            }
+
+            return error(message,sts[0].path);
         }
         if (warns.length > 0) {
             var message = warns.map(x => x.message).join(", ");

@@ -4,7 +4,7 @@
 import types=require("./types")
 import metakeys=require("./metaKeys")
 import pluralize=require("pluralize")
-import {deepCopy} from "./types";
+import {deepCopy, CompositeValidator} from "./types";
 import {isArray} from "util";
 import set = Reflect.set;
 function apply(t: types.Type, s: types.Type) {
@@ -55,7 +55,7 @@ const GENERIC_GROUP = "Generic";
 const ADVANCED_GROUP = "Advanced";
 const OTHER_GROUP = "Other";
 
-function interpolate(str: string, props: any) {
+export function interpolate(str: string, props: any) {
     return str.replace(/\${(\w+)\}/g, function (match, expr) {
         return (props )[expr];
     });
@@ -125,79 +125,79 @@ let deps = function (p: IPropertyGroup, x) {
     });
     return dependent;
 };
-function order(t:types.Type,p:IPropertyGroup){
+function order(t: types.Type, p: IPropertyGroup) {
 
-    var copy:types.Property[]=[];
-    var inserted:{ [name:string]:boolean}={}
-    p.properties.forEach(x=>{
+    var copy: types.Property[] = [];
+    var inserted: {[name: string]: boolean} = {}
+    p.properties.forEach(x => {
         var dependent = deps(p, x);
-        x.dependents=dependent;
-        x.dependents.forEach(y=>y.depends=x);
+        x.dependents = dependent;
+        x.dependents.forEach(y => y.depends = x);
     })
-    let properties = p.properties.filter(x=>!(<types.FunctionalValue>x.type).computeFunction);
+    let properties = p.properties.filter(x => !(<types.FunctionalValue>x.type).computeFunction);
 
-    properties.forEach(x=>{
-        if (x.required&&!x.type.enum){
-            insert(x,copy,inserted)
+    properties.forEach(x => {
+        if (x.required && !x.type.enum) {
+            insert(x, copy, inserted)
         }
     })
-    var po:metakeys.PropOrder=<any>t;
-    if (po.propOrder){
-        po.propOrder.forEach(x=>{
-            p.properties.forEach(y=>{
-                if (y.id==x){
-                    insert(y,copy,inserted)
+    var po: metakeys.PropOrder = <any>t;
+    if (po.propOrder) {
+        po.propOrder.forEach(x => {
+            p.properties.forEach(y => {
+                if (y.id == x) {
+                    insert(y, copy, inserted)
                 }
             })
         })
     }
-    properties.forEach(x=>{
-        if (!types.service.isBoolean(x)&&!x.depends){
-            insert(x,copy,inserted)
+    properties.forEach(x => {
+        if (!types.service.isBoolean(x) && !x.depends) {
+            insert(x, copy, inserted)
         }
     })
-    properties.forEach(x=>{
-        if (types.service.isBoolean(x)){
-            insert(x,copy,inserted)
+    properties.forEach(x => {
+        if (types.service.isBoolean(x)) {
+            insert(x, copy, inserted)
         }
     })
-    properties.forEach(x=>{
-        insert(x,copy,inserted)
+    properties.forEach(x => {
+        insert(x, copy, inserted)
     })
-    p.properties.filter(x=>(<types.FunctionalValue>x.type).computeFunction).forEach(x=>{
-        insert(x,copy,inserted)
+    p.properties.filter(x => (<types.FunctionalValue>x.type).computeFunction).forEach(x => {
+        insert(x, copy, inserted)
     });
-    p.properties=copy;
+    p.properties = copy;
 }
 
-function insert(p:types.Property,copy:types.Property[],inserted:{ [name:string]:boolean}){
-    if (inserted[p.id]){
+function insert(p: types.Property, copy: types.Property[], inserted: {[name: string]: boolean}) {
+    if (inserted[p.id]) {
         return;
     }
-    inserted[p.id]=true;
+    inserted[p.id] = true;
     copy.push(p);
-    p.dependents.forEach(d=>{
+    p.dependents.forEach(d => {
         if (!types.service.isBoolean(d)) {
             insert(d, copy, inserted)
         }
     });
-    p.dependents.forEach(d=>{
+    p.dependents.forEach(d => {
         insert(d, copy, inserted)
     });
 }
 
-function dependencyString(t:types.Type){
-    var ft:types.FullTypeOptions=<any>t;
-    var ds="";
-    ds=ds+addDeps(ft.hiddenWhen)
-    ds=ds+addDeps(ft.visibleWhen)
-    ds=ds+addDeps(ft.requiredWhen)
-    ds=ds+addDeps(ft.disabledWhen);
+function dependencyString(t: types.Type) {
+    var ft: types.FullTypeOptions = <any>t;
+    var ds = "";
+    ds = ds + addDeps(ft.hiddenWhen)
+    ds = ds + addDeps(ft.visibleWhen)
+    ds = ds + addDeps(ft.requiredWhen)
+    ds = ds + addDeps(ft.disabledWhen);
     return ds;
 }
 
-function addDeps(v:any){
-    if (typeof v=="string"){
+function addDeps(v: any) {
+    if (typeof v == "string") {
         return v;
     }
     return "";
@@ -207,9 +207,9 @@ export class TypeService {
 
     private instanceMap: WeakMap<any,types.Type> = new WeakMap();
 
-    private  typeMap: WeakMap<types.Type,types.Type> = new WeakMap();
+    private typeMap: WeakMap<types.Type,types.Type> = new WeakMap();
 
-    private  typeByName: Map<string,types.Type> = new Map();
+    private typeByName: Map<string,types.Type> = new Map();
 
     isScalar(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_SCALAR);
@@ -218,6 +218,7 @@ export class TypeService {
     isNumber(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_NUMBER);
     }
+
     isInteger(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_INTEGER);
     }
@@ -230,31 +231,32 @@ export class TypeService {
         return this.isSubtypeOf(t, types.TYPE_ARRAY);
     }
 
-    componentType(t:types.Type):types.Type{
-        var cm:types.ArrayType=t;
-        if (this.isArray(t)){
+    componentType(t: types.Type): types.Type {
+        var cm: types.ArrayType = t;
+        if (this.isArray(t)) {
             return this.resolvedType(cm.itemType);
         }
     }
-    isFiniteSetOfInstances(t:types.Type){
-        return t.enum||(<metakeys.EnumValues>t).enumValues;
+
+    isFiniteSetOfInstances(t: types.Type) {
+        return t.enum || (<metakeys.EnumValues>t).enumValues;
     }
 
-    normalize(r:types.TypeReference){
-        if (typeof  r=="string"){
+    normalize(r: types.TypeReference) {
+        if (typeof  r == "string") {
             return this.resolveTypeByName(r);
         }
-        else{
+        else {
             return r;
         }
     }
 
-    isMultiSelect(t: types.Type){
-        if (this.isArray(t)){
-            var cm:types.ArrayType=t;
-            if (cm.uniqueItems){
-                if (this.isFiniteSetOfInstances(this.componentType(t))){
-                    if (!(<metakeys.Ordered>t).ordered){
+    isMultiSelect(t: types.Type) {
+        if (this.isArray(t)) {
+            var cm: types.ArrayType = t;
+            if (cm.uniqueItems) {
+                if (this.isFiniteSetOfInstances(this.componentType(t))) {
+                    if (!(<metakeys.Ordered>t).ordered) {
                         return true;
                     }
                 }
@@ -279,7 +281,7 @@ export class TypeService {
         if (t == superT) {
             return true;
         }
-        if (((<any>t).$original)==superT){
+        if (((<any>t).$original) == superT) {
             return true;
         }
         var st = this.superTypes(t);
@@ -334,73 +336,76 @@ export class TypeService {
             }
         }
 
-        if (v&&typeof v=="object") {
-            if (v.$key){
+        if (v && typeof v == "object") {
+            if (v.$key) {
                 return v.$key
             }
             if (v.name) {
-                return this.getValue(t,v,"name");
+                return this.getValue(t, v, "name");
             }
             else if (v.title) {
-                return this.getValue(t,v,"title");
+                return this.getValue(t, v, "title");
             }
             else if (v.label) {
-                return this.getValue(t,v,"label");
+                return this.getValue(t, v, "label");
             }
 
             return t.displayName;
         }
-        if (typeof v=="array"){
-            var ll:any[]=v;
-            var it=(<types.ArrayType>t).itemType;
-            return ll.map(x=>this.label(x,<types.Type>it)).join(",");
+        if (typeof v == "array") {
+            var ll: any[] = v;
+            var it = (<types.ArrayType>t).itemType;
+            return ll.map(x => this.label(x, <types.Type>it)).join(",");
         }
-        if (v){
-            return ""+v;
+        if (v) {
+            return "" + v;
         }
     }
-    getValue(t:types.Type,target:any,name:string,bnd?:types.IGraphPoint){
-        if (!target){
+
+    getValue(t: types.Type, target: any, name: string, bnd?: types.IGraphPoint) {
+        if (!target) {
             return null;
         }
-        var prop=this.property(t,name);
-        if (prop){
-            var func:types.FunctionalValue=prop.type;
-            if (func.computeFunction){
-                if (!bnd){
-                    bnd=types.binding(target,t);
+        var prop = this.property(t, name);
+        if (prop) {
+            var func: types.FunctionalValue = prop.type;
+            if (func.computeFunction) {
+                if (!bnd) {
+                    bnd = types.binding(target, t);
                 }
-                return types.calcExpression(func.computeFunction,bnd);
+                return types.calcExpression(func.computeFunction, bnd);
             }
         }
 
-        var val=target[name];
-        if (val){
-            if (typeof val=="function"){
+        var val = target[name];
+        if (val) {
+            if (typeof val == "function") {
                 return (<Function>val).apply(target);
             }
         }
         return val;
     }
-    isReadonly(t:types.Type):boolean{
-        if (t.readonly){
+
+    isReadonly(t: types.Type): boolean {
+        if (t.readonly) {
             return true;
         }
-        if ((<types.FunctionalValue>t).computeFunction){
+        if ((<types.FunctionalValue>t).computeFunction) {
             return true;
         }
     }
-    setValue(t:types.Type,target:any,name:string,v:any,bnd:types.IGraphPoint){
-        var val=target[name];
-        var prop=this.property(t,name);
+
+    setValue(t: types.Type, target: any, name: string, v: any, bnd: types.IGraphPoint) {
+        var val = target[name];
+        var prop = this.property(t, name);
         if (prop) {
             if (prop.readonly) {
                 return;
             }
         }
-        var setter=target['get'+name.charAt(0).toUpperCase()+name.substring(1)];
-        if (setter&&typeof setter=="function"){
-            setter.apply(target,v);
+        var setter = target['get' + name.charAt(0).toUpperCase() + name.substring(1)];
+        if (setter && typeof setter == "function") {
+            setter.apply(target, v);
         }
 
 
@@ -517,53 +522,54 @@ export class TypeService {
                 properties: mm[k]
             })
         })
-        res.forEach(x=>order(t,x))
+        res.forEach(x => order(t, x))
         return res;
     }
 
-    private valMap: WeakMap<types.Type,types.InstanceValidator>=new WeakMap();
+    private valMap: WeakMap<types.Type,types.InstanceValidator> = new WeakMap();
 
-    validator(t: types.Type):types.InstanceValidator {
+    validator(t: types.Type): types.InstanceValidator {
         var rs = this.resolvedType(t);
         var hasW: metakeys.HasValidator = <metakeys.HasValidator>rs;
-        if (hasW.instanceValidator && hasW.overrideDefaultValidators) {
-            return hasW.instanceValidator;
+        let instanceValidator = hasW.instanceValidator;
+        if (instanceValidator && hasW.overrideDefaultValidators) {
+            return this.toVal(instanceValidator);
         }
-        if (this.valMap.has(rs)){
+        if (this.valMap.has(rs)) {
             return this.valMap.get(rs);
         }
-        var cm=new types.CompositeValidator();
-        this.valMap.set(rs,cm);
-        if (hasW.errorMessage){
-            cm._errorMessage=hasW.errorMessage;
+        var cm = new types.CompositeValidator();
+        this.valMap.set(rs, cm);
+        if (hasW.errorMessage) {
+            cm._errorMessage = hasW.errorMessage;
         }
 
-        if (hasW.instanceValidator){
-            cm._validators.push(hasW.instanceValidator);
+        if (instanceValidator) {
+            cm._validators.push(this.toVal(instanceValidator));
         }
-        if (rs.required&&typeof rs.required=="boolean"){
+        if (rs.required && typeof rs.required == "boolean") {
             cm._validators.push(new types.RequiredValidator());
         }
-        if ((<metakeys.RequiredWhen>rs).requiredWhen){
+        if ((<metakeys.RequiredWhen>rs).requiredWhen) {
             cm._validators.push(new types.RequiredWhenValidator((<metakeys.RequiredWhen>rs)));
         }
-        if (this.isString(rs)){
-            var st:types.StringType=rs;
-            if (st.pattern){
+        if (this.isString(rs)) {
+            var st: types.StringType = rs;
+            if (st.pattern) {
                 cm._validators.push({
-                    validateBinding(v:types.IGraphPoint):types.Status{
-                        var vl=""+v.get();
-                        if (!vl.match(st.pattern)){
-                            return types.error(v.type().displayName+" should match to "+st.pattern);
+                    validateBinding(v: types.IGraphPoint): types.Status{
+                        var vl = "" + v.get();
+                        if (!vl.match(st.pattern)) {
+                            return types.error(v.type().displayName + " should match to " + st.pattern);
                         }
                         return types.ok();
                     }
                 })
             }
-            if (st.minLength){
+            if (st.minLength) {
                 cm._validators.push({
-                    validateBinding(v:types.IGraphPoint):types.Status{
-                        var vv=v.get();
+                    validateBinding(v: types.IGraphPoint): types.Status{
+                        var vv = v.get();
                         if (v.get()) {
                             var vl = "" + vv;
                             if (vl.length < st.minLength) {
@@ -574,9 +580,9 @@ export class TypeService {
                     }
                 })
             }
-            if (st.maxLength){
+            if (st.maxLength) {
                 cm._validators.push({
-                    validateBinding(v:types.IGraphPoint):types.Status{
+                    validateBinding(v: types.IGraphPoint): types.Status{
                         if (v.get()) {
                             var vl = "" + v.get();
                             if (vl.length > st.maxLength) {
@@ -589,13 +595,13 @@ export class TypeService {
             }
 
         }
-        if (this.isNumber(rs)){
-            var nt:types.NumberType=rs;
+        if (this.isNumber(rs)) {
+            var nt: types.NumberType = rs;
 
-            if (nt.minimum){
+            if (nt.minimum) {
                 cm._validators.push({
-                    validateBinding(v:types.IGraphPoint):types.Status{
-                        var vv=v.get();
+                    validateBinding(v: types.IGraphPoint): types.Status{
+                        var vv = v.get();
                         if (v.get()) {
                             var vl = vv;
                             if (vl < nt.minimum) {
@@ -606,10 +612,10 @@ export class TypeService {
                     }
                 })
             }
-            if (nt.maximum){
+            if (nt.maximum) {
                 cm._validators.push({
-                    validateBinding(v:types.IGraphPoint):types.Status{
-                        var vv=v.get();
+                    validateBinding(v: types.IGraphPoint): types.Status{
+                        var vv = v.get();
                         if (v.get()) {
                             var vl = vv;
                             if (vl > nt.maximum) {
@@ -622,33 +628,67 @@ export class TypeService {
             }
 
         }
-        if (this.isObject(rs)){
-            var ps=this.allProperties(rs);
-            ps.forEach(p=>{
-                    var v=this.validator(p)
-                    cm._validators.push({
+        if (this.isObject(rs)) {
+            var ps = this.allProperties(rs);
+            ps.forEach(p => {
+                var v = this.validator(p)
+                cm._validators.push({
 
-                        validateBinding(g:types.IGraphPoint){
-                            return v.validateBinding(g.binding(p.id));
-                        }
-                    });
+                    validateBinding(g: types.IGraphPoint){
+                        return v.validateBinding(g.binding(p.id));
+                    }
                 });
+            });
 
         }
-        else if (this.isArray(rs)){
+        else if (this.isArray(rs)) {
 
         }
-        else if (this.isMap(rs)){
+        else if (this.isMap(rs)) {
 
         }
         return cm;
     }
-    keyProp(t:types.Type):string{
-        if ((<metakeys.KeyProp>t).keyProp){
+
+    private toVal(instanceValidator: types.InstanceValidator|string|string[]): types.InstanceValidator {
+        if (typeof instanceValidator == "string") {
+            return {
+                validateBinding(g: types.IGraphPoint){
+                    var clc = types.calcExpression(<string>instanceValidator, g);
+                    if (!clc) {
+                        return types.error("Some error", g.path())
+                    }
+                    return types.ok();
+                }
+            }
+        }
+        else if (Array.isArray(instanceValidator)) {
+            var cmpVal = new CompositeValidator();
+            var vals: string[] = instanceValidator;
+            vals.forEach(x => {
+                var vl = {
+                    validateBinding(g: types.IGraphPoint){
+                        var clc = types.calcExpression(<string>instanceValidator, g);
+                        if (!clc) {
+                            return types.error("Some error", g.path())
+                        }
+                        return types.ok();
+                    }
+                }
+                cmpVal._validators.push(vl);
+            })
+            return cmpVal;
+        }
+        return <types.InstanceValidator>instanceValidator;
+    }
+
+    keyProp(t: types.Type): string {
+        if ((<metakeys.KeyProp>t).keyProp) {
             return (<metakeys.KeyProp>t).keyProp;
         }
         return "$key";
     }
+
     public properties(t: types.Type, pn: {[p: string]: types.Property} = {}) {
         this.propertyMap(t, pn);
         var result: types.Property[] = [];
@@ -679,10 +719,10 @@ export class TypeService {
                 else {
                     rt = <types.Type>ty;
                 }
-                var nn=nicerName(p);
-                if (!rt.id){
-                    if (rt.displayName){
-                        nn=rt.displayName;
+                var nn = nicerName(p);
+                if (!rt.id) {
+                    if (rt.displayName) {
+                        nn = rt.displayName;
                     }
                 }
                 var gid = null
@@ -692,16 +732,17 @@ export class TypeService {
                     declaredAt: ot,
                     displayName: nn,
                     groupId: gid,
-                    required: ((<any>rt).required &&typeof rt.required=="boolean")? true : false
+                    required: ((<any>rt).required && typeof rt.required == "boolean") ? true : false
                 }
             })
         }
-        if (ot.required&&Array.isArray(ot.required)) {
+        if (ot.required && Array.isArray(ot.required)) {
             Object.keys(pn).forEach(x => {
                 pn[x].required = ot.required.indexOf(x) != -1;
             })
         }
     }
+
     public actions(t: types.Type, pn: {[p: string]: types.Action} = {}) {
         this.actionMap(t, pn);
         var result: types.Action[] = [];
@@ -723,17 +764,17 @@ export class TypeService {
         }
     }
 
-    workingCopy(v: any,t:types.Type){
-        if (this.isScalar(t)){
+    workingCopy(v: any, t: types.Type) {
+        if (this.isScalar(t)) {
             return v;
         }
         return deepCopy(v);
     }
 
     resolvedType(t: types.Type&{$resolved?: boolean}| string): types.Type {
-        if (typeof  t=="string"){
-            var sm:string=<any>t;
-            t=this.resolveTypeByName(sm);
+        if (typeof  t == "string") {
+            var sm: string = <any>t;
+            t = this.resolveTypeByName(sm);
         }
         if (t == types.TYPE_ANY) {
             return t;
@@ -758,7 +799,7 @@ export class TypeService {
         else {
             mm.type = [types.TYPE_ANY];
         }
-        var newTypes:types.Type[]=[];
+        var newTypes: types.Type[] = [];
         mm.type.forEach(t => {
             var rt = types.TYPE_ANY;
             if (typeof t == "string") {
@@ -771,33 +812,33 @@ export class TypeService {
             newTypes.push(rt);
         })
         apply(mm, t);
-        mm.type=newTypes;
+        mm.type = newTypes;
         mm.$resolved = true;
-        mm.$original=t;
+        mm.$original = t;
         if (!t.displayName && t.id) {
             t.displayName = nicerName(t.id)
         }
 
-        if (mm.itemType){
-            mm.itemType=this.resolvedType(mm.itemType);
-            if (!mm.itemType.displayName&&mm.displayName){
-                var rr={
-                    id:"",
-                    type:mm.itemType,
-                    displayName:pluralize.singular(mm.displayName)
+        if (mm.itemType) {
+            mm.itemType = this.resolvedType(mm.itemType);
+            if (!mm.itemType.displayName && mm.displayName) {
+                var rr = {
+                    id: "",
+                    type: mm.itemType,
+                    displayName: pluralize.singular(mm.displayName)
                 }
-                mm.itemType=this.resolvedType(rr);
+                mm.itemType = this.resolvedType(rr);
             }
         }
-        if (mm.componentType){
-            mm.componentType=this.resolvedType(mm.componentType);
-            if (!mm.componentType.displayName&&mm.displayName){
-                var rr={
-                    id:"",
-                    type:mm.componentType,
-                    displayName:pluralize.singular(mm.displayName)
+        if (mm.componentType) {
+            mm.componentType = this.resolvedType(mm.componentType);
+            if (!mm.componentType.displayName && mm.displayName) {
+                var rr = {
+                    id: "",
+                    type: mm.componentType,
+                    displayName: pluralize.singular(mm.displayName)
                 }
-                mm.componentType=this.resolvedType(rr);
+                mm.componentType = this.resolvedType(rr);
             }
         }
         this.typeMap.set(t, mm);
@@ -814,17 +855,17 @@ export class TypeService {
     }
 
     newInstance(t: types.Type): any {
-        if (this.isObject(t)){
-            var val={};
-            this.allProperties(t).forEach(x=>{
-                if (x.type.default){
-                    this.setValue(t,val,x.id,x.type.default,null);
+        if (this.isObject(t)) {
+            var val = {};
+            this.allProperties(t).forEach(x => {
+                if (x.type.default) {
+                    this.setValue(t, val, x.id, x.type.default, null);
                 }
             })
             return val;
         }
-        if (this.isArray(t)){
-            var ar=[];
+        if (this.isArray(t)) {
+            var ar = [];
 
             return ar;
         }
