@@ -168,7 +168,8 @@ export interface CollectionBinding {
     replace(oldValue: any, newValue: any);
     componentType(): Type;
     workingCopy(): any[]
-
+    contains(v:any):boolean
+    containsWithProp(prop:string,value:any):boolean
 }
 
 
@@ -324,6 +325,11 @@ export abstract class AbstractCollectionBinding {
     constructor(protected pb: Binding) {
 
     }
+    abstract componentType():Type
+    abstract workingCopy():any[]
+    containsWithProp(prop:string,value:any):boolean{
+        return this.workingCopy().filter(x=>service.getValue(this.componentType(),x,prop)==value).length>0;
+    }
 
     protected onChanged() {
         this.pb.changed();
@@ -349,6 +355,13 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
     componentType() {
         return this._componentType;
     }
+    contains(v:any){
+        if (this.value.indexOf(v)!=-1){
+            return true;
+        }
+        return false;
+    }
+
 
     constructor(p: Binding) {
         super(p);
@@ -361,7 +374,17 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
             this.value = [this.value];
             p.set(this.value);
         }
-        this._componentType = p.type().itemType;
+        if (p.type().uniqueItems){
+            this._componentType = {
+                uniqueValue:true,
+                owningCollection: this,
+                type:p.type().itemType
+            };
+        }
+        else this._componentType = {
+            owningCollection: this,
+            type:p.type().itemType
+        };
     }
 
 
@@ -400,6 +423,8 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
     value: any;
     _componentType: Type
 
+
+
     workingCopy() {
         var res = [];
         if (this.value) {
@@ -415,6 +440,15 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
             })
         }
         return res;
+    }
+    contains(v:any){
+        var key=v.$key;
+        if (this.value){
+            if (Object.keys(this.value).indexOf(key)!=-1){
+                return true;
+            }
+            return false;
+        }
     }
 
     componentType() {
@@ -448,7 +482,9 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
                     type: TYPE_STRING,
                     required: true,
                     displayName: nn,
-                    description: kd
+                    description: kd,
+                    unique: true,
+                    owningCollection: this
                 }
             },
             keyProp:"$key",
@@ -456,7 +492,6 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
         }
         if (service.isObject(this._componentType)) {
             ts.type = this._componentType;
-
         }
         else {
             var vn=this._componentType.displayName;
@@ -568,6 +603,49 @@ export class RequiredWhenValidator implements InstanceValidator {
                 }
                 return error(b.type().displayName + " is required in this context");
             }
+        }
+        return ok();
+    }
+}
+export class UniquinesValidator implements InstanceValidator {
+
+    constructor(private type:Type&metakeys.OwningCollection){
+
+    }
+
+    validateBinding(b: IGraphPoint): Status {
+        var hu:metakeys.OwningCollection=b.type();
+        var oc=this.type.owningCollection;
+        if (!oc){
+            if (b.parent()){
+                oc=(<any>b.parent().type()).owningCollection;
+            }
+        }
+        if (oc.containsWithProp(b.type().id,b.get())){
+            if (b.parent()&&(<any>b.parent().type()).uniquinessException){
+                if (service.getValue(b.parent().type(),(<any>b.parent().type()).uniquinessException,b.id())==b.get()){
+                    return ok();
+                }
+            }
+            return error(b.type().displayName + " should be unique",b.id());
+        }
+        return ok();
+    }
+}
+export class UniquieValueValidator implements InstanceValidator {
+
+    constructor(private type:Type&metakeys.OwningCollection){
+
+    }
+
+    validateBinding(b: IGraphPoint): Status {
+        var hu:metakeys.OwningCollection=b.type();
+        if (this.type.owningCollection.contains(b.get())){
+                if ((<any>b.type()).uniquinessException==b.get()){
+                    return ok();
+                }
+
+            return error(b.type().displayName + " should be unique",b.id());
         }
         return ok();
     }

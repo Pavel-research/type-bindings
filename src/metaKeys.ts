@@ -57,6 +57,16 @@ export interface HasValidator{
     overrideDefaultValidators?:boolean
     errorMessage?: string
 }
+export interface OwningCollection{
+    owningCollection?:types.CollectionBinding
+    uniquinessException?:any
+}
+
+export interface Unique{
+    unique?:boolean
+    uniqueValue?:boolean
+}
+
 export type Condition=string|((v:types.IGraphPoint)=>boolean)
 
 export interface VisibleWhen{

@@ -543,7 +543,21 @@ export class TypeService {
         if (hasW.errorMessage) {
             cm._errorMessage = hasW.errorMessage;
         }
-
+        var collection=(<metakeys.OwningCollection>rs).owningCollection;
+        if (collection){
+            //lets add unique validator
+            if ((<metakeys.Unique>rs).unique){
+                cm._validators.push(new types.UniquinesValidator(<any>rs))
+            }
+            if ((<metakeys.Unique>rs).uniqueValue){
+                cm._validators.push(new types.UniquieValueValidator(<any>rs))
+            }
+        }
+        else{
+            if ((<metakeys.Unique>rs).unique){
+                cm._validators.push(new types.UniquinesValidator(<any>rs))
+            }
+        }
         if (instanceValidator) {
             cm._validators.push(this.toVal(instanceValidator));
         }
