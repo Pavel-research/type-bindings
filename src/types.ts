@@ -54,6 +54,15 @@ export interface ObjectType extends Type {
     properties?: {[name: string]: TypeReference}
     actions?: {[name: string]: Action}
     required?: string[]
+    discriminator?: string
+    discriminatorValue?: any
+}
+
+export function hash(t:Type):string{
+    var m=deepCopy(t);
+    delete (<any>t).declaredAt;
+    delete (<any>t).$original;
+    return JSON.stringify(m);
 }
 
 export interface MapType extends Type {
@@ -70,6 +79,7 @@ export interface ArrayType extends Type {
     uniqueItems?: boolean
 }
 export const TYPE_ANY: MapType = {id: "any"}
+export const TYPE_UNION: MapType = {id: "union"}
 export const TYPE_SCALAR: Type = {id: "scalar", type: TYPE_ANY}
 export const TYPE_STRING: StringType = {id: "string", type: TYPE_SCALAR}
 export const TYPE_NUMBER: Type = {id: "number", type: TYPE_SCALAR}
@@ -80,7 +90,7 @@ export const TYPE_OBJECT: ObjectType = {id: "object"}
 export const TYPE_ARRAY: ArrayType = {id: "array"}
 export const TYPE_MAP: MapType = {id: "map"}
 
-
+service.register(TYPE_UNION);
 service.register(TYPE_ANY);
 service.register(TYPE_SCALAR);
 service.register(TYPE_STRING);
@@ -93,6 +103,15 @@ service.register(TYPE_ARRAY);
 service.register(TYPE_MAP);
 export function declareMeta(t: Type, v: any) {
     Object.keys(v).forEach(k => t[k] = v[k])
+}
+
+export function copy(t:TypeReference){
+    var ttt=service.resolvedType(t);
+    var result={ id:null, type: null};
+
+    Object.keys(ttt).forEach(x=>result[x]=ttt[x]);
+    delete (<any>result).$resolved;
+    return result;
 }
 
 export function array(t: Type): ArrayType {
@@ -209,7 +228,7 @@ export abstract class AbstractBinding implements IBinding {
 
     type() {
         if (this._type) {
-            return this._type;
+            return (<Type|any>service.resolvedType(this._type));
         }
         return TYPE_ANY;
     }
@@ -385,6 +404,9 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
             owningCollection: this,
             type:p.type().itemType
         };
+        if (!this._componentType.type.displayName&&p.type().displayName){
+            this._componentType.displayName=ts.nicerName(pluralize.singular(p.type().displayName))
+        }
     }
 
 
@@ -473,13 +495,17 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
         if (kd){
             nd=kd;
         }
+        var kt=TYPE_STRING;
+        if (p.type().keyType){
+            kt=p.type().keyType;
+        }
         var ts = {
             id: "",
             type: TYPE_OBJECT,
 
             properties: {
                 $key: {
-                    type: TYPE_STRING,
+                    type: kt,
                     required: true,
                     displayName: nn,
                     description: kd,

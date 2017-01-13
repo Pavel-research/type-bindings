@@ -231,6 +231,7 @@ export class TypeService {
         return this.isSubtypeOf(t, types.TYPE_ARRAY);
     }
 
+
     componentType(t: types.Type): types.Type {
         var cm: types.ArrayType = t;
         if (this.isArray(t)) {
@@ -317,7 +318,7 @@ export class TypeService {
         if (!rt.type) {
             return [];
         }
-        return <types.Type[]>this.resolvedType(t).type;
+        return <types.Type[]>rt.type;
     }
 
     label(v: any, t: types.Type): string {
@@ -790,6 +791,7 @@ export class TypeService {
             var sm: string = <any>t;
             t = this.resolveTypeByName(sm);
         }
+
         if (t == types.TYPE_ANY) {
             return t;
         }
@@ -857,6 +859,10 @@ export class TypeService {
         }
         this.typeMap.set(t, mm);
 
+        if ((<any>mm).options){
+            var ut:types.UnionType=<any>mm;
+            mm=optimizeUt(ut)
+        }
 
         //now we should collapse super types;
         return <types.Type>mm;
@@ -887,3 +893,50 @@ export class TypeService {
 }
 
 export const INSTANCE = new TypeService();
+
+function optimizeUt(ut:types.UnionType):types.Type{
+    var nt:{ [norm:string]:types.Type}={};
+    ut.options.forEach(x=>{
+        if (typeof x=="string"){
+            x=INSTANCE.resolveTypeByName(x);
+        }
+        nt[JSON.stringify(x)]=x}
+    )
+    var hasChanges=true;
+    while (hasChanges) {
+        hasChanges=false;
+        Object.keys(nt).forEach(x => {
+            Object.keys(nt).forEach(y => {
+                var t1 = nt[x];
+                var t2 = nt[y];
+                if (t1==t2){
+                    return;
+                }
+                if (INSTANCE.isArray(t1)) {
+                    if (INSTANCE.componentType(t1) == t2||INSTANCE.componentType(t1).id==t2.id) {
+                        delete nt[y];
+                        hasChanges=true;
+                    }
+                }
+                if (INSTANCE.isScalar(t1)&&INSTANCE.isScalar(t2)){
+                    if (INSTANCE.isSubtypeOf(t2,t1)) {
+                        delete nt[y];
+                        hasChanges = true;
+                    }
+                    else{
+
+                    }
+                }
+            })
+        })
+    }
+    var k=Object.keys(nt);
+    if (k.length==1){
+        return {id:ut.id,type: nt[k[0]]};
+    }
+    var rs:types.Type[]=[];
+    k.forEach(x=>rs.push(nt[x]));
+    var result=types.copy(ut)
+    ut.options=rs;
+    return result;
+}
