@@ -1,5 +1,6 @@
 export type TypeReference=Type|string
 export import metakeys=require("./metaKeys")
+export import manager=require("./manager")
 export import ts=require("./typesService")
 import pluralize=require("pluralize")
 export import service=ts.INSTANCE;
@@ -150,6 +151,9 @@ export interface Status {
     path: string
     severity: Severity
     valid: boolean
+
+    inner?:Status[]
+    point?: IGraphPoint
 }
 
 export interface IGraphPoint {
@@ -188,7 +192,7 @@ export interface CollectionBinding {
     componentType(): Type;
     workingCopy(): any[]
     contains(v:any):boolean
-    containsWithProp(prop:string,value:any):boolean
+    containsWithProp(prop:string,value:any,exceptions:any[]):boolean
 }
 
 
@@ -208,18 +212,28 @@ export abstract class AbstractBinding implements IBinding {
         }
     }
 
+    private _cb:CollectionBinding;
+
     collectionBinding() {
-        return this.createCollectionBinding();
+        if (this._cb){
+            return this._cb;
+        }
+        this._cb= this.createCollectionBinding();
+        return this._cb;
     }
 
     path(): string {
         if (this.parent()) {
-            return this.parent().path() + "." + this.id();
+            var ps=this.parent().path();
+            if (ps) {
+                return ps + "." + this.id();
+            }
+            return this.id();
         }
-        return this.id();
+        return "";
     }
 
-    protected fireEvent(c: ChangeEvent) {
+    public fireEvent(c: ChangeEvent) {
         this.listeners.forEach(x => x.valueChanged(c));
         if (this._parent) {
             this._parent.fireEvent(c);
@@ -236,15 +250,15 @@ export abstract class AbstractBinding implements IBinding {
     protected abstract createCollectionBinding(): CollectionBinding;
 
     add(v: any) {
-        this.createCollectionBinding().add(v);
+        this.collectionBinding().add(v);
     }
 
     remove(v: any) {
-        this.createCollectionBinding().remove(v);
+        this.collectionBinding().remove(v);
     }
 
     replace(oldValue: any, newValue: any) {
-        this.createCollectionBinding().replace(oldValue, newValue);
+        this.collectionBinding().replace(oldValue, newValue);
     }
 
     abstract get(): any
@@ -346,8 +360,8 @@ export abstract class AbstractCollectionBinding {
     }
     abstract componentType():Type
     abstract workingCopy():any[]
-    containsWithProp(prop:string,value:any):boolean{
-        return this.workingCopy().filter(x=>service.getValue(this.componentType(),x,prop)==value).length>0;
+    containsWithProp(prop:string,value:any,exceptions:any[]):boolean{
+        return this.workingCopy().filter(x=>service.getValue(this.componentType(),x,prop)==value).filter(x=>exceptions.indexOf(x)==-1).length>0;
     }
 
     protected onChanged() {
@@ -387,7 +401,9 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
         this.value = p.get();
         if (!this.value){
             this.value=[];
-            p.set(this.value);
+            if (!p.parent()||p.parent().get()) {
+                p.set(this.value);
+            }
         }
         else if (!Array.isArray(this.value)) {
             this.value = [this.value];
@@ -440,14 +456,25 @@ export function deepCopy(obj: any) {
     }
     return obj;
 }
+
+//const shadowMap=new WeakMap<any,any>();
 export class MapCollectionBinding extends AbstractCollectionBinding implements CollectionBinding {
 
     value: any;
     _componentType: Type
 
+    wcopy:any[]
 
+    // containsWithProp(prop:string,value:any,exceptions:any[]):boolean{
+    //     return this.workingCopy().filter(x=>service.getValue(this.componentType(),x,prop)==value).filter(x=>{
+    //         return exceptions.map(x=>x.$key).indexOf(x.$key)==-1;
+    //     }).length>0;
+    // }
 
     workingCopy() {
+        if (this.wcopy){
+            return this.wcopy;
+        }
         var res = [];
         if (this.value) {
             Object.keys(this.value).forEach(k => {
@@ -457,10 +484,18 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
                     res.push(rs);
                 }
                 else {
-                    res.push({$key: k, $value: this.value[k]})
+                    rs={$key: k, $value: this.value[k]};
+                    res.push(rs)
                 }
+                var view=this;
+                manager.INSTANCE.addListener(rs,{
+                    valueChanged(){
+                        view.replace({ $key:k},rs);
+                    }
+                })
             })
         }
+        this.wcopy=res;
         return res;
     }
     contains(v:any){
@@ -482,7 +517,9 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
         this.value = p.get();
         if (!this.value) {
             this.value = {};
-            p.set(this.value)
+            if (!p.parent()||p.parent().get()) {
+                p.set(this.value);
+            }
         }
         this._componentType = p.type().componentType;
         var nn="Name";
@@ -531,19 +568,26 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
     }
 
     add(v: any) {
+        this.workingCopy();
+        this.wcopy.push(v);
         if (!v.$key) {
             throw new Error("Adding object with no key")
         }
-        var val = v;
+        var val = deepCopy(v);
         if (v.$value) {
             val = v.$value;
         }
         this.value[v.$key] = val;
-        delete v["$key"];
+        delete val["$key"];
         this.pb.changed();
     }
 
     remove(v: any) {
+        if (v==null){
+            return;
+        }
+        this.workingCopy();
+        this.wcopy=this.wcopy.filter(x=>x!==v);
         if (!v.$key) {
             throw new Error("Removing object with no key")
         }
@@ -552,6 +596,9 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
     }
 
     replace(oldValue: any, newValue: any) {
+        this.workingCopy();
+        this.wcopy=this.wcopy.filter(x=>x!=oldValue);
+        delete this.value[oldValue.$key];
         if (!newValue.$key) {
             throw new Error("Adding object with no key")
         }
@@ -559,6 +606,9 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
             throw new Error("removing object with no key")
         }
         delete this.value[oldValue.$key];
+        if (this.value[newValue.$key]){
+            newValue.$key=oldValue.$key;
+        }
         this.add(newValue);
     }
 }
@@ -592,20 +642,22 @@ export function ok(): Status {
         valid: true
     }
 }
-export function error(message: string, path: string = ""): Status {
+export function error(message: string, path: string = "",inner?:Status[]): Status {
     return {
         severity: Severity.ERROR,
         message: message,
         path: path,
-        valid: false
+        valid: false,
+        inner: inner
     }
 }
-export function warn(message: string, path: string = ""): Status {
+export function warn(message: string, path: string = "",inner?:Status[]): Status {
     return {
         severity: Severity.WARNING,
         message: message,
         path: path,
-        valid: true
+        valid: true,
+        inner: inner
     }
 }
 export class RequiredValidator implements InstanceValidator {
@@ -633,6 +685,19 @@ export class RequiredWhenValidator implements InstanceValidator {
         return ok();
     }
 }
+ function getOwningCollection(b: IGraphPoint):CollectionBinding {
+    var hu: metakeys.OwningCollection = b.type();
+    var oc = (<any>b.type()).owningCollection;
+    if (!oc) {
+        if (b.parent()) {
+            oc = (<any>b.parent().type()).owningCollection;
+        }
+    }
+    if (oc instanceof AbstractBinding) {
+        oc = (<AbstractBinding>oc).collectionBinding();
+    }
+    return oc;
+};
 export class UniquinesValidator implements InstanceValidator {
 
     constructor(private type:Type&metakeys.OwningCollection){
@@ -640,20 +705,20 @@ export class UniquinesValidator implements InstanceValidator {
     }
 
     validateBinding(b: IGraphPoint): Status {
-        var hu:metakeys.OwningCollection=b.type();
-        var oc=this.type.owningCollection;
-        if (!oc){
-            if (b.parent()){
-                oc=(<any>b.parent().type()).owningCollection;
-            }
-        }
-        if (oc.containsWithProp(b.type().id,b.get())){
-            if (b.parent()&&(<any>b.parent().type()).uniquinessException){
-                if (service.getValue(b.parent().type(),(<any>b.parent().type()).uniquinessException,b.id())==b.get()){
-                    return ok();
+        var oc = getOwningCollection(b);
+        if (oc) {
+            var uex=[];
+            if (b.parent() && (<any>b.parent().type()).uniquinessException) {
+                var ue=(<any>b.parent().type()).uniquinessException;
+                if (ue instanceof AbstractBinding){
+                    ue=ue.get();
                 }
+                uex.push(ue);
             }
-            return error(b.type().displayName + " should be unique",b.id());
+            if ((<CollectionBinding>oc).containsWithProp(b.type().id, b.get(),uex)) {
+
+                return error(b.type().displayName + " should be unique", b.id());
+            }
         }
         return ok();
     }
@@ -666,16 +731,23 @@ export class UniquieValueValidator implements InstanceValidator {
 
     validateBinding(b: IGraphPoint): Status {
         var hu:metakeys.OwningCollection=b.type();
-        if (this.type.owningCollection.contains(b.get())){
-                if ((<any>b.type()).uniquinessException==b.get()){
+        var oc = getOwningCollection(b);
+        if (oc) {
+            if (oc.contains(b.get())) {
+                var ue=(<any>b.type()).uniquinessException;
+                if (ue instanceof AbstractBinding){
+                    ue=ue.get();
+                }
+                if (ue==b.get()){
                     return ok();
                 }
-
-            return error(b.type().displayName + " should be unique",b.id());
+                return error(b.type().displayName + " should be unique", b.id());
+            }
         }
         return ok();
     }
 }
+
 export class CompositeValidator implements InstanceValidator {
 
     _validators: InstanceValidator[] = [];
@@ -692,10 +764,9 @@ export class CompositeValidator implements InstanceValidator {
         if (sts.length > 0) {
             var message = sts.map(x => x.message).join(", ");
             if (this._errorMessage) {
-                return error(ts.interpolate(this._errorMessage,b.type()),sts[0].path);
+                return error(ts.interpolate(this._errorMessage,b.type()),sts[0].path,sts);
             }
-
-            return error(message,sts[0].path);
+            return error(message,sts[0].path,sts);
         }
         if (warns.length > 0) {
             var message = warns.map(x => x.message).join(", ");
@@ -716,10 +787,19 @@ export class Binding extends AbstractBinding implements IBinding {
 
     context:IContext;
 
+    readonly: boolean
+
+    autoinit:boolean=true;
+
     addVar(name:string,value:any){
         this.variables[name]=value;
     }
-
+    public fireEvent(c: ChangeEvent) {
+        super.fireEvent(c);
+        if (this.context&&this.context instanceof Binding){
+            (<Binding>this.context).changed();
+        }
+    }
     get(p?: string) {
         if (p) {
             return this.binding(p).get();
@@ -741,6 +821,9 @@ export class Binding extends AbstractBinding implements IBinding {
     }
 
     set(v: any) {
+        if (this.readonly){
+            return;
+        }
         if (v) {
             if (service.isNumber(this.type())) {
                 if (typeof v != "number") {
@@ -781,13 +864,17 @@ export class Binding extends AbstractBinding implements IBinding {
             var s = this._parent.get();
             if (!s) {
                 s = {};
-                this._parent.set(s);
+                if (this._parent.autoinit){
+                    this._parent.set(s);
+                } //autoinit
             }
-            service.setValue(this._type,s,this._id,v,this);
+            service.setValue(this.type(),s,this._id,v,this);
         }
         this.value = v;
         this.refreshChildren();
-        this.fireEvent(c);
+        this.fireEvent(ev);
+        manager.INSTANCE.fire(ev);
+
     }
 
     public changed() {
@@ -800,6 +887,8 @@ export class Binding extends AbstractBinding implements IBinding {
         };
         this.refreshChildren();
         this.fireEvent(ev);
+
+        manager.INSTANCE.fire(ev);
     }
 
 
@@ -811,9 +900,10 @@ export class Binding extends AbstractBinding implements IBinding {
 
     refresh() {
         if (this._parent && this.id) {
-            var vl = this._parent.get();
-            if (vl) {
-                this.value = vl[this._id];
+            var vl =this.get();
+            if (vl!==this.value) {
+                this.value=vl;
+                this.listeners.forEach(x => x.valueChanged(vl));
             }
         }
         this.refreshChildren();
@@ -839,7 +929,7 @@ export class Binding extends AbstractBinding implements IBinding {
             return st;
         }
         else if (name == "$key") {
-            if (this.parent() && this.parent()._type.componentType) {
+            if (this.parent() && this.parent().type().componentType) {
                 var kb = new KeyBinding(this);
                 return kb;
                 //this is actually a parent key binding;
@@ -852,15 +942,15 @@ export class Binding extends AbstractBinding implements IBinding {
         }
         b._parent = this;
         if (this.value) {
-            b.value = service.getValue(this._type,this.value,name);
+            b.value = service.getValue(this.type(),this.value,name);
         }
         b._id = name;
-        var p = service.property(this._type, name);
+        var p = service.property(this.type(), name);
         if (p) {
             b._type = service.resolvedType(p);
         }
-        else if ((<MapType>this._type).componentType) {
-            b._type = (<MapType>this._type).componentType;
+        else if ((<MapType>this.type()).componentType) {
+            b._type = (<MapType>this.type()).componentType;
         }
         this._bnds[name] = b;
         return b;

@@ -110,7 +110,7 @@ describe("Simple bindings tests", function () {
         assert(c.x == 5, "Binding sets");
         assert(c.y == 2, "Binding sets");
         assert(b.binding("x").get() == 5);
-        assert(b.binding("x").type() == types.TYPE_NUMBER);
+        assert(types.service.isNumber(b.binding("x").type()));
     });
     it("Nested binding", function () {
         var c:any = {};
@@ -120,7 +120,7 @@ describe("Simple bindings tests", function () {
         assert(c.location.x == 5, "Binding sets");
         assert(c.location.y == 2, "Binding sets");
         assert(b.binding("location.x").get() == 5);
-        assert(b.binding("location.x").type() == types.TYPE_NUMBER);
+        assert(types.service.isNumber(b.binding("location.x").type()));
     });
 
     it("Listening to changes", function () {
@@ -143,7 +143,7 @@ describe("Simple bindings tests", function () {
         var ec=0;
         b.binding("location").set("5");
         assert(b.get("location") == "5");
-        assert(b.binding("location").type()==types.TYPE_STRING)
+        assert(types.service.isString(b.binding("location").type()));
         assert(c.location="5");
     });
     it("Map type2", function () {
@@ -235,7 +235,7 @@ describe("Simple bindings tests", function () {
     it("label 2",function () {
         var man={name:"Some company"};
         var label=types.service.label(man,company);
-        assert(label=="Company: Some company")
+        assert(label=="Some company")
     })
     it("children", function(){
         var q={"label":"A",elements:[{label:"B"},{label:"C"}]}
@@ -246,5 +246,29 @@ describe("Simple bindings tests", function () {
         var q={"label":"A",elements:[{label:"B"},{label:"C"}]}
         var children=types.service.children(q,Node1);
         assert(children.length==2)
+    })
+
+    it ("required",function(){
+        var tp={
+            id:"Point",
+            type: "object",
+            properties:{
+                x: "number",
+                y: "number"
+            },
+            required:["x","y"]
+        }
+        var mm={
+            id:"NamedPoint",
+            type: tp,
+            properties:{
+                name: {
+                    type: "string",
+                    required: true
+                }
+            }
+        }
+        var nm=types.service.property(mm,"name")
+        assert(nm.required);
     })
 });

@@ -4,21 +4,24 @@
 import types=require("./types")
 import metakeys=require("./metaKeys")
 import pluralize=require("pluralize")
-import {deepCopy, CompositeValidator} from "./types";
+import {deepCopy, CompositeValidator, Binding} from "./types";
 import {isArray} from "util";
 import set = Reflect.set;
+
 function apply(t: types.Type, s: types.Type) {
     Object.keys(s).forEach(k => {
         if (k == "properties") {
             if (!t[k]) {
-                t[k] = s[k];
+                t[k] ={};
             }
-            else {
+            {
                 var props = s[k];
                 Object.keys(props).forEach(p => {
+                    props[p]
                     t[k][p] = props[p];
                 })
             }
+
             return;
         }
         if (k == "type") {
@@ -28,6 +31,14 @@ function apply(t: types.Type, s: types.Type) {
             t[k] = s[k];
         }
     })
+    var props=(<types.ObjectType>s).properties;
+    if (props&&t.required&&Array.isArray(t.required)){
+        Object.keys(props).forEach(p => {
+            if ((<types.Type>props[p]).required){
+                (<string[]>t.required).push(p);
+            }
+        })
+    }
 }
 export function nicerName(n: string) {
     var result: string[] = [];
@@ -100,13 +111,7 @@ function setupGroups(ps: types.Property[], t: types.Type) {
         if (INSTANCE.isScalar(q.type)) {
             q.groupId = GENERIC_GROUP;
         }
-        else if (INSTANCE.isArray(q.type)) {
-            q.groupId = q.id;
-        }
-        else if (INSTANCE.isObject(q.type)) {
-            q.groupId = q.id;
-        }
-        else if (INSTANCE.isMap(q.type)) {
+        else {
             q.groupId = q.id;
         }
     }
@@ -135,7 +140,14 @@ function order(t: types.Type, p: IPropertyGroup) {
         x.dependents.forEach(y => y.depends = x);
     })
     let properties = p.properties.filter(x => !(<types.FunctionalValue>x.type).computeFunction);
-
+    var kp=(<types.metakeys.KeyProp>t).keyProp;
+    if (kp) {
+        properties.forEach(x => {
+            if (x.id==kp) {
+                insert(x, copy, inserted)
+            }
+        })
+    }
     properties.forEach(x => {
         if (x.required && !x.type.enum) {
             insert(x, copy, inserted)
@@ -212,7 +224,20 @@ export class TypeService {
     private typeByName: Map<string,types.Type> = new Map();
 
     isScalar(t: types.Type) {
-        return this.isSubtypeOf(t, types.TYPE_SCALAR);
+        var m = this.isSubtypeOf(t, types.TYPE_SCALAR);
+        if (!m) {
+            var options = (<types.UnionType>t).options;
+            if (options) {
+                var allScalar = true;
+                options.forEach(x => {
+                    allScalar = allScalar && this.isScalar(this.resolvedType(x));
+                })
+                if (allScalar) {
+                    return true;
+                }
+            }
+        }
+        return m;
     }
 
     isNumber(t: types.Type) {
@@ -230,12 +255,38 @@ export class TypeService {
     isArray(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_ARRAY);
     }
+    isVisible (t: types.Type,b:types.IGraphPoint):boolean{
+        var m:types.metakeys.VisibleWhen&types.metakeys.DisabledWhen=t;
+        var visible=true;
+        if (m.visibleWhen){
+            visible=visible&&types.calcCondition(m.visibleWhen,b);
+        }
+        var vl=t;
+        if ((<types.metakeys.DiscriminatorValueInfo><any>vl).discriminationInfo){
+            var map=(<types.metakeys.DiscriminatorValueInfo><any>vl).discriminationInfo
+            if (b.parent()){
+                Object.keys(map).forEach(x=>{
+                    var actualDescValue=b.parent().binding(x).get();
+                    if (map[x].indexOf(actualDescValue)==-1){
+                        visible=false;
+                    }
+                })
 
+            }
+        }
+        if (m.hiddenWhen){
+            visible=visible&&!types.calcCondition(m.hiddenWhen,b)
+        }
+        return visible
+    }
 
     componentType(t: types.Type): types.Type {
         var cm: types.ArrayType = t;
         if (this.isArray(t)) {
             return this.resolvedType(cm.itemType);
+        }
+        if (this.isMap(t)) {
+            return this.resolvedType((<types.MapType>cm).componentType);
         }
     }
 
@@ -319,6 +370,34 @@ export class TypeService {
             return [];
         }
         return <types.Type[]>rt.type;
+    }
+
+    discriminatorValue(t: types.Type) {
+        var r = this.resolvedType(t);
+        var dv = (<types.ObjectType>r).discriminatorValue;
+        if (dv) {
+            return dv;
+        }
+        if (t.id) {
+            return t.id;
+        }
+    }
+
+    discriminator(t: types.Type) {
+        var r = this.resolvedType(t);
+        var dv = (<types.ObjectType>r).discriminator;
+        return dv;
+    }
+
+    caption(t: types.Type): string {
+        var r = this.resolvedType(t);
+        if (r.displayName) {
+            return r.displayName;
+        }
+        if (r.id) {
+            return nicerName(r.id);
+        }
+        return "";
     }
 
     label(v: any, t: types.Type): string {
@@ -544,18 +623,18 @@ export class TypeService {
         if (hasW.errorMessage) {
             cm._errorMessage = hasW.errorMessage;
         }
-        var collection=(<metakeys.OwningCollection>rs).owningCollection;
-        if (collection){
+        var collection = (<metakeys.OwningCollection>rs).owningCollection;
+        if (collection) {
             //lets add unique validator
-            if ((<metakeys.Unique>rs).unique){
+            if ((<metakeys.Unique>rs).unique) {
                 cm._validators.push(new types.UniquinesValidator(<any>rs))
             }
-            if ((<metakeys.Unique>rs).uniqueValue){
+            if ((<metakeys.Unique>rs).uniqueValue) {
                 cm._validators.push(new types.UniquieValueValidator(<any>rs))
             }
         }
-        else{
-            if ((<metakeys.Unique>rs).unique){
+        else {
+            if ((<metakeys.Unique>rs).unique) {
                 cm._validators.push(new types.UniquinesValidator(<any>rs))
             }
         }
@@ -650,17 +729,99 @@ export class TypeService {
                 cm._validators.push({
 
                     validateBinding(g: types.IGraphPoint){
-                        return v.validateBinding(g.binding(p.id));
+                        var lb=g.binding(p.id);
+                        if (INSTANCE.isVisible(lb.type(),lb)) {
+                            var res= v.validateBinding(lb);
+                            if (!res.path){
+                                res.path=p.id;
+                            }
+                            else{
+                                res.path=p.id+"."+res.path
+                            }
+                            return res;
+                        }
+                        return types.ok();
                     }
                 });
             });
-
         }
         else if (this.isArray(rs)) {
+            cm._validators.push({
 
+                validateBinding(g: types.IGraphPoint){
+                    var value=g.get();
+                    if (value){
+                        var toVal:any[]=value;
+                        if (!Array.isArray(value)){
+                            toVal=[value];
+                        }
+                        var bnd=new Binding("");
+                        //bnd._parent=<types.Binding>g;
+                        var ct={
+                            id:"",
+                            type: INSTANCE.componentType(rs),
+                            owningCollection:(<Binding>g).collectionBinding(),
+                            uniquinessException: bnd
+                        };
+                        bnd._type=ct;
+                        bnd.context=<Binding>g;
+                        var componentValidator=INSTANCE.validator(ct);
+                        var statuses:types.Status[]=[];
+                        toVal.forEach((el,i)=>{
+                            bnd.value=el;
+                            var rs=componentValidator.validateBinding(bnd);//
+                            if(!rs.valid){
+                                statuses.push(types.error(INSTANCE.caption(ct)+" "+INSTANCE.label(el,ct)+" has problems ("+rs.message+")","["+i+"]",[rs]));
+                            }
+                        })
+                        statuses=statuses.filter(x=>x.severity==types.Severity.ERROR);
+                        if (statuses.length>0){
+                           return types.error(statuses.map(x=>x.message).join(","),"",statuses);
+                        }
+                        return types.ok();
+                    }
+                    return types.ok();
+                }
+            });
         }
         else if (this.isMap(rs)) {
+            cm._validators.push({
 
+                validateBinding(g: types.IGraphPoint){
+                    var value=(<types.AbstractBinding>g).collectionBinding().workingCopy();
+                    if (value){
+                        var toVal:any[]=value;
+                        if (!Array.isArray(value)){
+                            toVal=[value];
+                        }
+                        var bnd=new Binding("");
+                        var ct={
+                            id:"",
+                            type: (<Binding>g).collectionBinding().componentType(),
+                            owningCollection:(<Binding>g).collectionBinding(),
+                            uniquinessException: bnd
+                        };
+                        //bnd._parent=<types.Binding>g;
+                        bnd._type=ct;
+                        bnd.context=<Binding>g;
+                        var componentValidator=INSTANCE.validator(bnd.type());
+                        var statuses:types.Status[]=[];
+                        toVal.forEach((el,i)=>{
+                            bnd.value=el;
+                            var rs=componentValidator.validateBinding(bnd);//
+                            if(!rs.valid){
+                                statuses.push(types.error(INSTANCE.caption(bnd.type())+" "+INSTANCE.label(el,bnd.type())+" has problems ("+rs.message+")","["+i+"]",[rs]));
+                            }
+                        })
+                        statuses=statuses.filter(x=>x.severity==types.Severity.ERROR);
+                        if (statuses.length>0){
+                            return types.error(statuses.map(x=>x.message).join(","),"",statuses);
+                        }
+                        return types.ok();
+                    }
+                    return types.ok();
+                }
+            });
         }
         return cm;
     }
@@ -671,7 +832,7 @@ export class TypeService {
                 validateBinding(g: types.IGraphPoint){
                     var clc = types.calcExpression(<string>instanceValidator, g);
                     if (!clc) {
-                        return types.error("Some error", g.path())
+                        return types.error("Some error", "")
                     }
                     return types.ok();
                 }
@@ -685,7 +846,7 @@ export class TypeService {
                     validateBinding(g: types.IGraphPoint){
                         var clc = types.calcExpression(<string>instanceValidator, g);
                         if (!clc) {
-                            return types.error("Some error", g.path())
+                            return types.error("Some error", "")
                         }
                         return types.ok();
                     }
@@ -718,7 +879,7 @@ export class TypeService {
 
     property(t: types.Type, name: string) {
         var rs = {};
-        var r = this.propertyMap(t, rs);
+        var r = this.propertyMap(this.resolvedType(t), rs);
         return rs[name];
     }
 
@@ -827,12 +988,14 @@ export class TypeService {
             apply(mm, rt);
             newTypes.push(rt);
         })
+
         apply(mm, t);
         mm.type = newTypes;
         mm.$resolved = true;
         mm.$original = t;
         if (!t.displayName && t.id) {
             t.displayName = nicerName(t.id)
+
         }
 
         if (mm.itemType) {
@@ -846,7 +1009,7 @@ export class TypeService {
                 mm.itemType = this.resolvedType(rr);
             }
         }
-        if (mm.componentType) {
+        if (mm.componentType&&!mm.componentType.$resolved) {
             mm.componentType = this.resolvedType(mm.componentType);
             if (!mm.componentType.displayName && mm.displayName) {
                 var rr = {
@@ -859,9 +1022,10 @@ export class TypeService {
         }
         this.typeMap.set(t, mm);
 
-        if ((<any>mm).options){
-            var ut:types.UnionType=<any>mm;
-            mm=optimizeUt(ut)
+        if ((<any>mm).options) {
+            var ut: types.UnionType = <any>mm;
+            mm = optimizeUt(ut)
+            this.typeMap.set(t, mm);
         }
 
         //now we should collapse super types;
@@ -873,6 +1037,80 @@ export class TypeService {
             return this.instanceMap.get(v);
         }
     }
+
+
+    normalizeObjectUnionType(u: types.UnionType,tp:types.ObjectType[]):types.ObjectType {
+        var rs = types.copy(u);
+        rs.type = "object";
+        var pmap: {[name: string]: {[name: string]: types.Property}} = {};
+        var dmap: {[name: string]: {[name: string]: string[]}} = {};
+
+        //now lets try to gather discriminator
+        var discriminators: {[name: string]: string[]} = {}
+        var discriminatorDescriptions: {[name: string]: string[]} = {}
+        tp.forEach(v => {
+            var rt = this.resolvedType(v);
+            var allProps = this.allProperties(rt);
+            var desc = this.discriminator(rt);
+            var value = this.discriminatorValue(rt);
+            allProps.forEach(c => {
+                var rmap = pmap[c.id];
+                var dm = dmap[c.id];
+                if (!rmap) {
+                    rmap = {};
+                    pmap[c.id] = rmap;
+                }
+                if (!dm) {
+                    dm = {};
+                    dmap[c.id] = dm;
+                }
+                var vls = dm[desc];
+                if (!vls) {
+                    vls = [];
+                    dm[desc] = vls;
+                }
+                vls.push(value);
+                rmap[types.hash(c.type)] = c;
+            })
+            var dlist = discriminators[desc];
+            var ddescs = discriminatorDescriptions[desc];
+            if (!dlist) {
+                dlist = [];
+                ddescs = [];
+                discriminators[desc] = dlist
+                discriminatorDescriptions[desc] = ddescs;
+            }
+            dlist.push(value);
+            ddescs.push(this.caption(rt));
+        })
+        var ps: {[name: string]: types.TypeReference} = {};
+        Object.keys(pmap).forEach(k => {
+            var cand = pmap[k];
+            if (Object.keys(cand).length == 1) {
+                ps[k] = cand[Object.keys(cand)[0]];
+            }
+            else {
+                ps[k] = {
+                    id: k,
+                    type: "union"
+
+                };
+                (<any>ps[k]).options = Object.keys(cand).map(v => cand[v]);
+            }
+            if (discriminators[k]) {
+                (<any>ps[k]).enum = discriminators[k];
+                (<any>ps[k]).enumDescriptions = discriminatorDescriptions[k];
+                (<any>ps[k]).required = true;
+            }
+            else {
+                (<metakeys.DiscriminatorValueInfo><any>ps[k]).discriminationInfo = dmap[k];
+            }
+        });
+        (<types.ObjectType><any>rs).properties = ps;
+        delete (<types.UnionType><any>rs).options
+        delete (<any>rs).createControl
+        return rs;
+    };
 
     newInstance(t: types.Type): any {
         if (this.isObject(t)) {
@@ -894,49 +1132,97 @@ export class TypeService {
 
 export const INSTANCE = new TypeService();
 
-function optimizeUt(ut:types.UnionType):types.Type{
-    var nt:{ [norm:string]:types.Type}={};
-    ut.options.forEach(x=>{
-        if (typeof x=="string"){
-            x=INSTANCE.resolveTypeByName(x);
+function optimizeUt(ut: types.UnionType): types.Type {
+    var nt: {[norm: string]: types.Type} = {};
+    ut.options.forEach(x => {
+            if (typeof x == "string") {
+                x = INSTANCE.resolveTypeByName(x);
+            }
+            nt[JSON.stringify(x)] = x
         }
-        nt[JSON.stringify(x)]=x}
     )
-    var hasChanges=true;
+    var hasChanges = true;
     while (hasChanges) {
-        hasChanges=false;
+        hasChanges = false;
         Object.keys(nt).forEach(x => {
             Object.keys(nt).forEach(y => {
                 var t1 = nt[x];
                 var t2 = nt[y];
-                if (t1==t2){
+                if (t1 == t2) {
                     return;
                 }
                 if (INSTANCE.isArray(t1)) {
-                    if (INSTANCE.componentType(t1) == t2||INSTANCE.componentType(t1).id==t2.id) {
-                        delete nt[y];
-                        hasChanges=true;
-                    }
-                }
-                if (INSTANCE.isScalar(t1)&&INSTANCE.isScalar(t2)){
-                    if (INSTANCE.isSubtypeOf(t2,t1)) {
+                    if (INSTANCE.componentType(t1) == t2 || INSTANCE.componentType(t1).id == t2.id) {
                         delete nt[y];
                         hasChanges = true;
                     }
-                    else{
+                }
+                if (INSTANCE.isScalar(t1) && INSTANCE.isScalar(t2)) {
+                    if (INSTANCE.isSubtypeOf(t2, t1)) {
+                        delete nt[y];
+                        hasChanges = true;
+                    }
+                    else {
 
                     }
                 }
             })
         })
     }
-    var k=Object.keys(nt);
-    if (k.length==1){
-        return {id:ut.id,type: nt[k[0]]};
+    var objectTypes:types.ObjectType[]=[];
+    var scalarTypes:types.ObjectType[]=[];
+    var arrayTypes:types.ObjectType[]=[];
+    var otherTypes:types.ObjectType[]=[];
+    Object.keys(nt).forEach(x=>{
+        var tp=nt[x];
+        if (INSTANCE.isScalar(tp)){
+            scalarTypes.push(tp);
+        }
+        else if (INSTANCE.isObject(tp)){
+            objectTypes.push(tp);
+        }
+        else if (INSTANCE.isArray(tp)){
+            arrayTypes.push(tp);
+        }
+        else{
+            otherTypes.push(tp);
+        }
+    });
+    var options:types.Type[]=[];
+    if (objectTypes.length>0){
+        if (objectTypes.length==1){
+            options.push(objectTypes[0]);
+        }
+        else{
+            options.push(INSTANCE.normalizeObjectUnionType(ut,objectTypes));
+        }
     }
-    var rs:types.Type[]=[];
-    k.forEach(x=>rs.push(nt[x]));
-    var result=types.copy(ut)
-    ut.options=rs;
+    if (arrayTypes.length>0){
+        if (arrayTypes.length==1){
+            options.push(arrayTypes[0]);
+        }
+        else{
+            var t:types.ArrayType=<any>types.copy(ut);
+            t.type="array";
+            let it:types.UnionType=<any>types.copy(ut);
+            it.id=""
+            it.displayName=""
+            it.options=arrayTypes.map(o=>{
+                var rs=types.copy((<types.ArrayType>o).itemType);
+                return rs;
+            });
+            t.itemType=it;
+            delete (<any>t).options;
+            delete (<any>t).createControl;
+            options.push(t);
+        }
+    }
+    options=options.concat(scalarTypes);
+    options=options.concat(otherTypes);
+    if (options.length == 1) {
+        return INSTANCE.resolvedType(options[0]);
+    }
+    var result = types.copy(ut)
+    ut.options = options;
     return result;
 }

@@ -49,6 +49,9 @@ export interface TypeAhead{
 export interface Ordered{
     ordered?: boolean
 }
+export interface DiscriminatorValueInfo{
+    discriminationInfo: {[name:string]:string[] }
+}
 
 import types=require("./types")
 
@@ -58,7 +61,7 @@ export interface HasValidator{
     errorMessage?: string
 }
 export interface OwningCollection{
-    owningCollection?:types.CollectionBinding
+    owningCollection?:types.CollectionBinding|types.IBinding
     uniquinessException?:any
 }
 

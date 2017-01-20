@@ -6,6 +6,9 @@ export function proxy(tv:any,t:types.Type,bnd?:types.IGraphPoint){
     if (typeof tv!="object"){
         return tv;
     }
+    if (tv==null||tv==undefined){
+        return null;
+    }
     if (Proxy){
         if (proxyCache.has(tv)){
             return proxyCache.get(tv);
