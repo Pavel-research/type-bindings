@@ -3,10 +3,13 @@
  */
 import types=require("./types")
 import metakeys=require("./metaKeys")
+
+import moment=require("moment")
 import pluralize=require("pluralize")
 import {deepCopy, CompositeValidator, Binding} from "./types";
 import {isArray} from "util";
 import set = Reflect.set;
+import storage=require("./storage")
 
 function apply(t: types.Type, s: types.Type) {
     Object.keys(s).forEach(k => {
@@ -46,6 +49,9 @@ export function nicerName(n: string) {
     var p = "";
     for (var i = 0; i < n.length; i++) {
         var c = n.charAt(i);
+        if (c=='_'){
+            c=' ';
+        }
         if (p.toUpperCase() != p) {
             if (c.toLowerCase() != c) {
                 result.push(' ');
@@ -255,6 +261,9 @@ export class TypeService {
     isArray(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_ARRAY);
     }
+    isRelation(t: types.Type) {
+        return this.isSubtypeOf(t, types.TYPE_RELATION);
+    }
     isVisible (t: types.Type,b:types.IGraphPoint):boolean{
         var m:types.metakeys.VisibleWhen&types.metakeys.DisabledWhen=t;
         var visible=true;
@@ -319,6 +328,9 @@ export class TypeService {
 
     isBoolean(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_BOOLEAN);
+    }
+    isDate(t: types.Type) {
+        return this.isSubtypeOf(t, types.TYPE_DATE);
     }
 
     isMap(t: types.Type) {
@@ -455,7 +467,9 @@ export class TypeService {
                 }
                 return types.calcExpression(func.computeFunction, bnd);
             }
+
         }
+
 
         var val = target[name];
         if (val) {

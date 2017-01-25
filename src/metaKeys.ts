@@ -18,7 +18,9 @@ export interface Label{
 export interface KeyProp{
     keyProp?: string
 }
-
+export interface Icon{
+    icon?:string
+}
 
 export interface TreeProp{
     children?: string | string[]
@@ -83,4 +85,15 @@ export interface RequiredWhen{
 
 export interface DisabledWhen{
     disabledWhen?:(v:types.IGraphPoint)=>boolean;
+}
+
+export interface WebCollection{
+    location?: string
+    paging?: boolean
+    results?: string
+    total?: string
+    pagesStartFromZero?:boolean
+    pageSizePointer?: string
+    pageNumberPointer?: string
+    errorIn?: string
 }

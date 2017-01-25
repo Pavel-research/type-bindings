@@ -3,6 +3,7 @@ export import metakeys=require("./metaKeys")
 export import manager=require("./manager")
 export import ts=require("./typesService")
 import pluralize=require("pluralize")
+import moments=require("moment")
 export import service=ts.INSTANCE;
 
 export interface Type {
@@ -40,7 +41,6 @@ export interface Property {
     groupId: string
     dependents?: Property[];
     depends?: Property;
-
 }
 export interface Action{
     id: string
@@ -50,6 +50,8 @@ export interface Action{
     parameters?:Type[]
     code:string
 }
+
+
 
 export interface ObjectType extends Type {
     properties?: {[name: string]: TypeReference}
@@ -85,15 +87,29 @@ export const TYPE_SCALAR: Type = {id: "scalar", type: TYPE_ANY}
 export const TYPE_STRING: StringType = {id: "string", type: TYPE_SCALAR}
 export const TYPE_NUMBER: Type = {id: "number", type: TYPE_SCALAR}
 export const TYPE_INTEGER: Type = {id: "integer", type: TYPE_NUMBER}
+
+export const TYPE_DATE: Type = <Type&metakeys.Label>{id: "date", type: TYPE_SCALAR , label(v){
+    return moments(v).calendar(null, {
+        sameDay: '[Today]',
+        nextDay: '[Tomorrow]',
+        nextWeek: 'dddd',
+        lastDay: '[Yesterday]',
+        lastWeek: '[Last] dddd',
+        sameElse: 'DD/MM/YYYY'
+    });
+}}
 export const TYPE_BOOLEAN: Type = {id: "boolean", type: TYPE_SCALAR}
 export const TYPE_NULL: Type = {id: "null", type: TYPE_SCALAR}
 export const TYPE_OBJECT: ObjectType = {id: "object"}
 export const TYPE_ARRAY: ArrayType = {id: "array"}
 export const TYPE_MAP: MapType = {id: "map"}
-
+export const TYPE_RELATION: Type = {id: "relation", type: TYPE_ARRAY}
+export const TYPE_TEXT: StringType = {id: "text", type: "string",multiline:true}
+export const TYPE_MARKDOWN: Type = {id: "markdown", type: TYPE_TEXT}
 service.register(TYPE_UNION);
 service.register(TYPE_ANY);
 service.register(TYPE_SCALAR);
+service.register(TYPE_DATE);
 service.register(TYPE_STRING);
 service.register(TYPE_NUMBER);
 service.register(TYPE_INTEGER);
@@ -101,6 +117,9 @@ service.register(TYPE_BOOLEAN);
 service.register(TYPE_NULL);
 service.register(TYPE_OBJECT);
 service.register(TYPE_ARRAY);
+service.register(TYPE_RELATION);
+service.register(TYPE_TEXT);
+service.register(TYPE_MARKDOWN);
 service.register(TYPE_MAP);
 export function declareMeta(t: Type, v: any) {
     Object.keys(v).forEach(k => t[k] = v[k])
@@ -109,7 +128,6 @@ export function declareMeta(t: Type, v: any) {
 export function copy(t:TypeReference){
     var ttt=service.resolvedType(t);
     var result={ id:null, type: null};
-
     Object.keys(ttt).forEach(x=>result[x]=ttt[x]);
     delete (<any>result).$resolved;
     return result;
@@ -182,7 +200,10 @@ export interface IBinding extends IGraphPoint,IContext {
     remove(v: any): any
     replace(old: any, newV: any): any
     status(): IBinding
-
+    isLoading():boolean
+    isError():boolean
+    clearError();
+    errorMessage():string
 }
 
 export interface CollectionBinding {
@@ -195,11 +216,47 @@ export interface CollectionBinding {
     containsWithProp(prop:string,value:any,exceptions:any[]):boolean
 }
 
+export abstract class ListenableValue<T>{
+    protected listeners: IValueListener[] = []
+    _parent: ListenableValue<any>;
 
-export abstract class AbstractBinding implements IBinding {
-    listeners: IValueListener[] = []
+    public fireEvent(c: ChangeEvent) {
+        this.listeners.forEach(x => x.valueChanged(c));
+        if (this._parent) {
+            this._parent.fireEvent(c);
+        }
+    }
+
+    abstract get():T
+
+    addListener(v: IValueListener) {
+        this.listeners.push(v);
+    }
+
+    removeListener(v: IValueListener) {
+        this.listeners = this.listeners.filter(x => x != v);
+    }
+}
+
+export interface Thenable {
+    then(f: (err,v: any) => void);
+}
+
+
+export abstract class AbstractBinding extends  ListenableValue<any> implements IBinding {
+
     _parent: Binding;
     lookupVar(v: string){
+        return null;
+    }
+    clearError(){}
+    isLoading():boolean{
+        return false;
+    }
+    isError(){
+        return false;
+    }
+    errorMessage():string{
         return null;
     }
     _type: any
@@ -212,7 +269,7 @@ export abstract class AbstractBinding implements IBinding {
         }
     }
 
-    private _cb:CollectionBinding;
+    protected _cb:CollectionBinding;
 
     collectionBinding() {
         if (this._cb){
@@ -231,13 +288,6 @@ export abstract class AbstractBinding implements IBinding {
             return this.id();
         }
         return "";
-    }
-
-    public fireEvent(c: ChangeEvent) {
-        this.listeners.forEach(x => x.valueChanged(c));
-        if (this._parent) {
-            this._parent.fireEvent(c);
-        }
     }
 
     type() {
@@ -282,13 +332,7 @@ export abstract class AbstractBinding implements IBinding {
         return <IBinding><any>this;
     }
 
-    addListener(v: IValueListener) {
-        this.listeners.push(v);
-    }
 
-    removeListener(v: IValueListener) {
-        this.listeners = this.listeners.filter(x => x != v);
-    }
 
     innerBnds() {
         return this._bnds;
@@ -372,24 +416,34 @@ export abstract class AbstractCollectionBinding {
 
 class ArrayCollectionBinding extends AbstractCollectionBinding implements CollectionBinding {
 
-    value: any[];
+    _value: any[];
     _componentType: any
 
+    value(){
+        if (!this._value||this._value.length==0){
+            if (this.pb){
+                this._value=this.pb.get();
+            }
+        }
+        if (!this._value) {
+            this._value = [];
+        }
+        else if (!Array.isArray(this._value)) {
+            this._value = [];
+        }
+        return this._value;
+    }
+
     workingCopy() {
-        if (!this.value) {
-            this.value = [];
-        }
-        else if (!Array.isArray(this.value)) {
-            this.value = [];
-        }
-        return this.value;
+
+        return this.value();
     }
 
     componentType() {
-        return this._componentType;
+        return service.resolvedType(this._componentType);
     }
     contains(v:any){
-        if (this.value.indexOf(v)!=-1){
+        if (this.value().indexOf(v)!=-1){
             return true;
         }
         return false;
@@ -398,17 +452,7 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
 
     constructor(p: Binding) {
         super(p);
-        this.value = p.get();
-        if (!this.value){
-            this.value=[];
-            if (!p.parent()||p.parent().get()) {
-                p.set(this.value);
-            }
-        }
-        else if (!Array.isArray(this.value)) {
-            this.value = [this.value];
-            p.set(this.value);
-        }
+
         if (p.type().uniqueItems){
             this._componentType = {
                 uniqueValue:true,
@@ -427,22 +471,22 @@ class ArrayCollectionBinding extends AbstractCollectionBinding implements Collec
 
 
     add(v: any) {
-        this.value.push(v);
+        this.value().push(v);
         this.pb.changed();
     }
 
     remove(v: any) {
-        var i = this.value.indexOf(v);
+        var i = this.value().indexOf(v);
         if (i != -1) {
-            this.value.splice(i, 1);
+            this.value().splice(i, 1);
         }
         this.pb.changed();
     }
 
     replace(oldValue: any, newValue: any) {
-        var i = this.value.indexOf(oldValue);
+        var i = this.value().indexOf(oldValue);
         if (i != -1) {
-            this.value[i] = newValue;
+            this.value()[i] = newValue;
         }
         this.pb.changed();
     }
@@ -509,7 +553,7 @@ export class MapCollectionBinding extends AbstractCollectionBinding implements C
     }
 
     componentType() {
-        return this._componentType;
+        return service.resolvedType(this._componentType);
     }
 
     constructor(p: Binding) {
@@ -777,6 +821,8 @@ export class CompositeValidator implements InstanceValidator {
 export interface IContext{
     lookupVar(name:string):any
 }
+
+
 export class Binding extends AbstractBinding implements IBinding {
 
     _parent: Binding;
@@ -800,12 +846,25 @@ export class Binding extends AbstractBinding implements IBinding {
             (<Binding>this.context).changed();
         }
     }
+
+    inGet:boolean;
     get(p?: string) {
         if (p) {
             return this.binding(p).get();
         }
         if (this._parent&&this._id){
-            return service.getValue(this._parent.type(),this._parent.value,this._id,this._parent);
+            var mm=service.getValue(this._parent.type(),this._parent.value,this._id,this._parent);
+            if (mm!=this.value){
+                this.value=mm;
+                var v=this.autoinit;
+                this.inGet=true;
+                if (service.isArray(this.type())||service.isMap(this.type())) {
+                    this._cb = this.createCollectionBinding();
+                }
+                this.inGet=false;
+            }
+
+            return mm;
         }
         return this.value;
     }
@@ -871,9 +930,11 @@ export class Binding extends AbstractBinding implements IBinding {
             service.setValue(this.type(),s,this._id,v,this);
         }
         this.value = v;
-        this.refreshChildren();
-        this.fireEvent(ev);
-        manager.INSTANCE.fire(ev);
+        if (!this.inGet) {
+            this.refreshChildren();
+            this.fireEvent(ev);
+            manager.INSTANCE.fire(ev);
+        }
 
     }
 
@@ -935,17 +996,24 @@ export class Binding extends AbstractBinding implements IBinding {
                 //this is actually a parent key binding;
             }
         }
-        var b = new Binding(name);
-        if (name.charAt(0)=='@'){
-            b.value=this.lookupVar(name.substring(1));
-            return b;
-        }
-        b._parent = this;
-        if (this.value) {
-            b.value = service.getValue(this.type(),this.value,name);
-        }
-        b._id = name;
         var p = service.property(this.type(), name);
+        var b:Binding=null;
+        if (p&&service.isRelation(p.type)){
+            b=new storage.BasicPagedCollection(name,<metakeys.WebCollection>service.resolvedType(p.type),this);
+        }
+        else {
+            b = new Binding(name);
+            if (name.charAt(0)=='@'){
+                b.value=this.lookupVar(name.substring(1));
+                return b;
+            }
+            if (this.value) {
+                b.value = service.getValue(this.type(),this.value,name);
+            }
+            b._id = name;
+        }
+
+        b._parent = this;
         if (p) {
             b._type = service.resolvedType(p);
         }
@@ -1010,7 +1078,6 @@ export class ComputedBinding extends Binding implements IValueListener {
         }
     }
 
-
     constructor(id: string, private f: ((v: IBinding) => any), private listenToRoot: boolean, parent: Binding) {
         super(id);
         this._parent = parent;
@@ -1024,13 +1091,13 @@ export class ComputedBinding extends Binding implements IValueListener {
     }
 
     get(): any {
-
         return this.f(this.parent());
     }
 }
 
-export class StatusBinding extends ComputedBinding implements IValueListener {
+export import storage=require("./storage")
 
+export class StatusBinding extends ComputedBinding implements IValueListener {
     constructor(p: Binding) {
         super("$status", v => {
             var validator = service.validator(p.type());
