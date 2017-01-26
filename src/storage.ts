@@ -176,7 +176,7 @@ export class BasicPagedCollection extends PagedCollection{
         }
     }
     refresh(){
-        if (this.dynamicUrl){
+        if (this.dynamicUrl&&this.g.get()){
             var vs=this.g.get()[this.id()];
             if (vs!=this.info.template.url){
                 this.info.template.url=vs;
