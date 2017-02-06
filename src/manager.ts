@@ -12,7 +12,7 @@ export interface ISetObserver extends types.IValueListener{
 }
 export class ObjectChangeManager{
 
-    private map:WeakMap<any,ObjectRecord>=new WeakMap();
+    private map:Map<any,ObjectRecord>=new Map();
     private observers:ISetObserver[]=[]
 
     addListener(object:any,l:types.IValueListener){

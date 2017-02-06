@@ -11,12 +11,19 @@ export interface VisibleProperties {
 export interface PropertyGroups {
     propertyGroups?:{[name:string]:string[]}
 }
-
+export interface needsOwnGroup{
+    needsOwnGroup?:boolean
+}
 export interface Label{
     label?: string | ((v:any)=>string)
+    htmlLabel?:boolean
+    cellSize?: number
 }
 export interface KeyProp{
     keyProp?: string
+}
+export interface Key{
+    key?: boolean
 }
 export interface Icon{
     icon?:string
@@ -41,6 +48,9 @@ export interface PropOrder{
 }
 export interface AlternativeGroups{
     alternativeGroups?: string[]| string[][]
+}
+export interface EqualTo{
+    equalTo?: string
 }
 export interface EnumValues{
     enumValues?: string
@@ -89,6 +99,8 @@ export interface DisabledWhen{
 
 export interface WebCollection{
     location?: string
+    url?: string
+    baseUri?: string
     paging?: boolean
     results?: string
     total?: string
@@ -96,4 +108,7 @@ export interface WebCollection{
     pageSizePointer?: string
     pageNumberPointer?: string
     errorIn?: string
+    method?: string
+    parameters?:types.Parameter[]
+    securedBy?: string[]
 }

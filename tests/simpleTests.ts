@@ -1,6 +1,7 @@
 "use strict";
 import types = require("../src/types");
 import {metakeys} from "../src/types";
+import st=require("../src/storage")
 var chai = require("chai");
 var assert = chai.assert;
 import  mocha=require("mocha")
@@ -156,7 +157,7 @@ describe("Simple bindings tests", function () {
         b.binding("M1.$key").set("Moscow");
         assert(b.get("Moscow.y") == "6");
         assert(b.get("Moscow.$key") == "Moscow");
-        //assert(b.binding("location").type()==types.TYPE_STRING)
+        //assert(binding.binding("location").type()==types.TYPE_STRING)
         assert(c.Moscow!=null);
     });
     it("Map type3", function () {
@@ -270,5 +271,10 @@ describe("Simple bindings tests", function () {
         }
         var nm=types.service.property(mm,"name")
         assert(nm.required);
+    })
+    it ("link parsing",function () {
+
+        let header=`<https://api.github.com/search/issues?page=4&q=raml&%24timestamp=818>; rel="next", <https://api.github.com/search/issues?page=34&q=raml&%24timestamp=818>; rel="last", <https://api.github.com/search/issues?page=1&q=raml&%24timestamp=818>; rel="first", <https://api.github.com/search/issues?page=2&q=raml&%24timestamp=818>; rel="prev`
+        st.linkHeadersParser(header);
     })
 });

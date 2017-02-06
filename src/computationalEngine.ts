@@ -35,17 +35,32 @@ export function proxy(tv:any,t:types.Type,bnd?:types.IGraphPoint){
     }
 }
 export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint): any {
-    if (typeof c == "string") {
-        var vv=c.charAt(0);
-        if (vv=='@'){
-            var mm=<types.Binding>v;
-            return mm.lookupVar(c.substring(1));
+    try {
+        if (typeof c == "string") {
+            var vv = c.charAt(0);
+            if (vv == '@') {
+                var mm = <types.Binding>v;
+                return mm.lookupVar(c.substring(1));
+            }
+            var func = new Function("$value", "$","context", "return " + c);
+            const contextProxy=new Proxy(v,{
+                get: (target:any, property:string, receiver)=> {
+                    return (<types.Binding>v).lookupVar(property);
+                },
+            })
+            return func.apply(proxy(v.get(), v.type(), v), [v, v.root().get(),contextProxy]);
         }
-        var func = new Function("$value", "$", "return " + c);
-        return func.apply(proxy(v.get(),v.type(),v), [v, v.root().get()]);
-    }
-    else {
-        return c(v);
+        else {
+            if (typeof c=="boolean"){
+                return c;
+            }
+            if (typeof c=="number"){
+                return c;
+            }
+            return c(v);
+        }
+    } catch (e){
+        return e;
     }
 }
 export function calcCondition(c: metakeys.Condition, v: types.IGraphPoint): boolean {
