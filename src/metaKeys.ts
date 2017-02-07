@@ -22,6 +22,9 @@ export interface Label{
 export interface KeyProp{
     keyProp?: string
 }
+export interface Reference{
+    reference?:boolean
+}
 export interface Key{
     key?: boolean
 }

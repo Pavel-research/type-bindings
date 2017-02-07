@@ -119,7 +119,7 @@ function setupGroups(ps: types.Property[], t: types.Type) {
         })
     }
     ps.forEach(x => {
-            if (x.required && INSTANCE.isScalar(x.type)) {
+            if (x.required && INSTANCE.isScalar(x.type)||INSTANCE.isReference(x.type)) {
                 x.groupId = GENERIC_GROUP
                 return;
             }
@@ -326,6 +326,13 @@ export class TypeService implements IExecutor{
         }
         return m;
     }
+    isReference(t:types.Type){
+        var r=this.resolvedType(t);
+        if ((<metakeys.Reference>r).reference){
+            return true;
+        }
+        return false;
+    }
 
     isNumber(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_NUMBER);
@@ -368,13 +375,89 @@ export class TypeService implements IExecutor{
     registerExecutor(name:string,ex:IExecutor){
         this.executors[name]=ex;
     }
+
+    conversionRules:{
+        [key:string]:types.ConversionRule
+    }={}
+
+    registerModule(module:types.Module){
+        if (module.conversionRules){
+            Object.keys(module.conversionRules).forEach(x=>{
+                var cr=module.conversionRules[x];
+                var key=cr.from+"->"+cr.to;
+                this.conversionRules[key]=cr;
+            })
+        }
+    }
+
+    resolvableId(t:types.Type| string){
+        if (typeof  t=="string"){
+            return t;
+        }
+        if (t.id){
+            return t.id;
+        }
+        if (t.type){
+            if (typeof t.type=="string"){
+                return t.type;
+            }
+            if (Array.isArray(t.type)){
+                var m:any[]=t.type;
+                if (m.length==1){
+                    if (typeof m[0]=="string"){
+                        return m[0];
+                    }
+                    return this.resolvableId(m[0]);
+                }
+                return null;
+            }
+            return this.resolvableId(t.type)
+        }
+    }
+    private executeConversionRule(r:types.ConversionRule,targetType : types.Type,sourceType:types.Type,vl:any){
+        if (r.selfRule){
+            var b=new Binding("");
+            b.set(vl)
+            var exp=types.calcExpression(r.selfRule,b);
+            return exp;
+        }
+        return vl;
+    }
+
     convert(targetType : types.Type,sourceType:types.Type,vl:any):any{
+        if (this.isSubtypeOf(sourceType,targetType)){
+            return vl;
+        }
+        var sid=this.resolvableId(sourceType);
+        var tid=this.resolvableId(targetType);
+        var cid=sid+"->"+tid;
+        if (this.conversionRules[cid]){
+            return this.executeConversionRule(this.conversionRules[cid],targetType,sourceType,vl);
+        }
+        if (this.isArray(targetType)&&this.isArray(sourceType)){
+            if (Array.isArray(vl)){
+                return vl.map(x=>{
+                    return this.convert(this.componentType(targetType),this.componentType(sourceType),x);
+                })
+            }
+        }
+        if (this.isString(targetType)){
+            if (this.isObject(sourceType)){
+                return this.label(vl,sourceType);//
+            }
+        }
         if (this.isObject(targetType)){
             var rs={};
             this.allProperties(targetType).forEach(x=>{
                 var cl=this.getValue(sourceType,vl,x.id,null);
                 if (cl){
+                    if (cl){
+                        cl=this.convert(x.type,this.property(sourceType,x.id).type,cl);//
+                    }
                     this.setValue(targetType,rs,x.id,cl,null);
+                }
+                else{
+                    this.setValue(targetType,rs,x.id,null,null);
                 }
             })
             return rs;
@@ -397,6 +480,17 @@ export class TypeService implements IExecutor{
             return [];
         }
         return <types.Operation[]>t.destructors.map(x=>{
+            if (typeof x=="string"){
+                return this.resolveTypeByName(x);
+            }
+            return x;
+        })
+    }
+    listers(t : types.Type):types.Operation[]{
+        if (!t.listers){
+            return [];
+        }
+        return <types.Operation[]>t.listers.map(x=>{
             if (typeof x=="string"){
                 return this.resolveTypeByName(x);
             }
@@ -430,6 +524,7 @@ export class TypeService implements IExecutor{
     }
 
     componentType(t: types.Type): types.Type {
+        t=this.resolvedType(t);
         var cm: types.ArrayType = t;
         if (this.isArray(t)) {
             return this.resolvedType(cm.itemType);
@@ -456,7 +551,7 @@ export class TypeService implements IExecutor{
         if (this.isArray(t)) {
             var cm: types.ArrayType = t;
             if (cm.uniqueItems) {
-                if (this.isFiniteSetOfInstances(this.componentType(t))) {
+                if (this.isFiniteSetOfInstances(this.componentType(t))||(<metakeys.Reference>this.resolvedType(t)).reference) {
                     if (!(<metakeys.Ordered>t).ordered) {
                         return true;
                     }
@@ -468,6 +563,18 @@ export class TypeService implements IExecutor{
 
     isBoolean(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_BOOLEAN);
+    }
+
+    isSame(v0:any,v1:any,t:types.Type){
+        if (v0==v1){
+            return true;
+        }
+        var kp=this.keyProp(t);
+        if (kp){
+            var k0=this.getValue(t,v0,kp);
+            var k1=this.getValue(t,v1,kp);
+            return k0==k1;
+        }
     }
 
     isDate(t: types.Type) {
@@ -502,6 +609,9 @@ export class TypeService implements IExecutor{
 
 
     register(t: types.Type) {
+        if (t.type=="module"){
+            this.registerModule(<types.Module>t);
+        }
         if (t.id) {
             // if (this.typeByName.has(t.id)) {
             //     if (this.typeByName.get(t.id) === t) {

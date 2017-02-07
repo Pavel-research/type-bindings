@@ -388,6 +388,7 @@ export class BasicPagedCollection extends PagedCollection {
     constructor(id: string, t: meta.WebCollection, private g: types.IGraphPoint) {
         super(id);
         this.info = new PagedCollectionInfo(t);
+        this._type=<types.Type>t;
         var cp = types.service.componentType(<types.Type>t);
         var constructors = types.service.constructors(cp);
         if (constructors.length > 0) {
@@ -404,7 +405,10 @@ export class BasicPagedCollection extends PagedCollection {
             this.dynamicUrl = true;
         }
     }
-
+    all():any[]{
+        //FIXME
+        return this.collectionBinding().workingCopy();
+    }
     refresh() {
         if (this.dynamicUrl && this.g.get()) {
             var vs = this.g.get()[this.id()];
@@ -541,8 +545,9 @@ export class BasicPagedCollection extends PagedCollection {
                     this.totalResults = this.value.length;
                 }
             }
-            this._cb.refresh();
-
+            if (this._cb) {
+                this._cb.refresh();
+            }
             this._isLoading = false;
             this.changed();
         });

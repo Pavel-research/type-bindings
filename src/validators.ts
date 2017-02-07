@@ -293,6 +293,9 @@ export class ValidationManager {
                 cm._validators.push({
 
                     validateBinding(g: types.IGraphPoint){
+                        if (!g.get()){
+                            return ok();
+                        }
                         var lb = g.binding(p.id);
                         if (service.isVisible(lb.type(), lb)) {
                             var res = v.validateBinding(lb);
