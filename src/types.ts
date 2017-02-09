@@ -1314,8 +1314,8 @@ export class ViewBinding extends Binding {
     parametersChanged() {
         this.parameterModifyCount++;
         var cp = this.parameterModifyCount;
-        if (this._parametersOwnerBinding.lastEvent) {
-            var tp = this._parametersOwnerBinding.lastEvent.source.type();
+        if (this._parametersOwnerBinding.getLastEvent()) {
+            var tp = this._parametersOwnerBinding.getLastEvent().source.type();
             if (tp.enum || (<metakeys.EnumValues>tp).enumValues || service.isBoolean(tp)) {
                 this.innerParametersChanged();
                 return;
@@ -1338,7 +1338,7 @@ export class ViewBinding extends Binding {
         }
     }
 
-    _parametersOwnerBinding;
+    _parametersOwnerBinding:Binding;
 
     allParameterBindings(){
         if (this._allParamBindings){
@@ -1385,10 +1385,10 @@ export class ViewBinding extends Binding {
                             }
                         })
                         b._parametersOwnerBinding.binding(x.id).set(b1.get());
-                        this._allParamBindings.push(b._parametersOwnerBinding.binding(x.id));
+                        this._allParamBindings.push(<Binding>b._parametersOwnerBinding.binding(x.id));
                     }
                     else {
-                        var bnd = this._parametersOwnerBinding.binding(x.id);
+                        var bnd = <Binding>this._parametersOwnerBinding.binding(x.id);
                         this._paramBindings.push(bnd);
                         this._allParamBindings.push(bnd);
                     }
@@ -1396,15 +1396,15 @@ export class ViewBinding extends Binding {
                 })
             }
         }
-        // this.parameterBindings().forEach(x => {
-        //
-        //     var mm = this.lookupVar(x.id());
-        //     if (mm) {
-        //         x.set(mm);
-        //     }
-        // })
         this._parametersOwnerBinding.addListener({
             valueChanged(){
+                var ev=b._parametersOwnerBinding.getLastEvent();
+                if (b.parameterBindings().indexOf(<Binding>ev.source)==-1){
+                    if (b.allParameterBindings().indexOf(<Binding>ev.source)!=-1){
+                        b.innerParametersChanged();
+                        return;
+                    }
+                }
                 b.parametersChanged();
             }
         })
