@@ -316,10 +316,16 @@ export class UpdatingArrayBinding extends cb.ArrayCollectionBinding{
 
     updater: types.Operation;
 
-    constructor(p: BasicPagedCollection){
+    constructor(private p: BasicPagedCollection){
         super(p);
         this.updater=p.updateOperation();
     }
+    createSelectionBinding(){
+        var selBind=super.createSelectionBinding();
+        selBind._autoCommit=false;
+        return selBind;
+    }
+
 
     replace(oldValue:any,newValue:any){
         super.replace(oldValue,newValue);
@@ -328,11 +334,17 @@ export class UpdatingArrayBinding extends cb.ArrayCollectionBinding{
         bb.set(oldValue);
         bb._type=this.componentType();
         toUpdate.context=bb;
+        this.p.lastRevision++;
+        var ll=this.p.lastRevision;
         toUpdate.set(newValue);
         toUpdate.execute((x)=>{
-            this.pb.value=null;
-            this.pb.changed();
+            if (this.p.lastRevision==ll) {
+                this.p.request();
+            }
         })
+    }
+    postApplySelection(){
+
     }
     applyChangedElement(e:any){
         this.replace(e,e);
@@ -361,6 +373,12 @@ export class BasicPagedCollection extends PagedCollection {
 
     protected currentPageNum = 0;
 
+    request(){
+        this.requestPage(this.currentPageNum);
+    }
+
+    lastRevision=0;
+
     protected adder: types.Operation;
     protected remover: types.Operation;
     protected updater: types.Operation;
@@ -379,6 +397,11 @@ export class BasicPagedCollection extends PagedCollection {
 
     accessControl() {
         return new RESTAccessControl(this);
+    }
+
+    innerParametersChanged(){
+        this.currentPageNum=0;
+        super.innerParametersChanged();
     }
 
     protected _isLoading: boolean
@@ -488,12 +511,17 @@ export class BasicPagedCollection extends PagedCollection {
             this.currentPageNum = num;
             this.changed();
         }
-
-        var lr = this.info.getPage(num, 0, this.parameterBindings());
+        //all parameters
+        var lr = this.info.getPage(num, 0, this.allParameterBindings());//all storage
         if (authServiceHolder.service) {
             lr = authServiceHolder.service.patchRequest(this, lr);
         }
+
+        var q=this.lastRevision;
         this.executor.execute(lr).then((err, x,extra) => {
+            if (this.lastRevision!=q){
+                return;
+            }
             if (err) {
                 if (err.status == 401 || err.status == 403) {
                     this.authError = true;
@@ -545,6 +573,7 @@ export class BasicPagedCollection extends PagedCollection {
                     this.totalResults = this.value.length;
                 }
             }
+
             if (this._cb) {
                 this._cb.refresh();
             }

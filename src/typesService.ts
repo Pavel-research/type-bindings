@@ -334,6 +334,19 @@ export class TypeService implements IExecutor{
         return false;
     }
 
+    icon(v:any,t:types.Type){
+        var vl=(<metakeys.Icon>t).icon;
+        if (vl){
+            if (v[vl]){
+                return v[vl]
+            }
+            if ((<metakeys.Icon>t).defaultIcon){
+                return (<metakeys.Icon>t).defaultIcon
+            }
+            return vl;
+        }
+    }
+
     isNumber(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_NUMBER);
     }

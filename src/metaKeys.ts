@@ -30,6 +30,7 @@ export interface Key{
 }
 export interface Icon{
     icon?:string
+    defaultIcon?:string
 }
 
 export interface TreeProp{

@@ -40,6 +40,8 @@ export class SelectionAccessControl extends DefaultAccessControl<types.Binding>{
         return this.isEditable();
     }
 }
+
+
 export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
 
     constructor(protected pb: Binding) {
@@ -106,7 +108,7 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
             ll=JSON.stringify(v);
         }
         catch (e){}
-        console.log("Selection:"+this.pb.uid()+":"+this.pb.id()+":"+ll);
+        //console.log("Selection:"+this.pb.uid()+":"+this.pb.id()+":"+ll);
         if (this.applyingSelection){
             return;
         }
