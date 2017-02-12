@@ -411,7 +411,7 @@ export class ValidationManager {
             vals.forEach(x => {
                 var vl = {
                     validateBinding(g: types.IGraphPoint){
-                        var clc = types.calcExpression(<string>instanceValidator, g);
+                        var clc = types.calcExpression(<string><any>instanceValidator, g);
                         if (!clc) {
                             return error("Some error", "")
                         }

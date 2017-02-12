@@ -837,7 +837,7 @@ export class Binding extends AbstractBinding implements IBinding {
             }
             this.refreshChildren();
             if (this._parent && this.id) {
-                if (chV || typeof mm == "object") {
+                if (chV || typeof mm == "object"|| ((<metakeys.EnumValues>this.type()).enumValues)||(this.type().computeFunction)) {
                     var v = this.autoinit;
                     this.listeners.forEach(x => x.valueChanged(null));
                 }
@@ -1086,13 +1086,14 @@ function canCompute(b:Binding,x:Parameter,allowVar=true){
         if (b.lookupVar(x.id)) {
             return true;
         }
+    }
         if ((<FunctionalValue>x).computeFunction) {
             return true;
         }
         if ((<metakeys.EqualTo>x).equalTo) {
             return true;
         }
-    }
+
 }
 function computeParameter(b:Binding,x:Parameter,allowVar=true){
     if ((<metakeys.Reference>x).reference){
@@ -1129,17 +1130,19 @@ function computeParameter(b:Binding,x:Parameter,allowVar=true){
         if (v) {
             return v;
         }
+    }
         if ((<FunctionalValue>x).computeFunction) {
             var exp = calcExpression((<FunctionalValue>x).computeFunction, b);
             if (exp) {
                 return exp;
             }
         }
+
         if ((<metakeys.EqualTo>x).equalTo) {
             var eq = (<metakeys.EqualTo>x).equalTo;
             return calcExpression(eq, b);
         }
-    }
+
 
 }
 function computeParameterBinding(b:Binding,x:Parameter):IBinding{
@@ -1179,6 +1182,7 @@ function computeParameterBinding(b:Binding,x:Parameter):IBinding{
         b.value=v;
         return b;
     }
+
     if ((<FunctionalValue>x).computeFunction) {
         var exp = calcExpression((<FunctionalValue>x).computeFunction,b);
         var b=new Binding(x.id);
@@ -1206,7 +1210,9 @@ export class Parameterizeable extends Binding{
 export class OperationBinding extends Parameterizeable {
 
     canCompute(x: Parameter) {
-        return canCompute(this.ctx,x)||canCompute(this,x,false);
+        var vvl=canCompute(this.ctx,x);
+
+        return vvl||canCompute(this,x,false);
     }
 
     lookupVar(v: string) {
@@ -1221,7 +1227,11 @@ export class OperationBinding extends Parameterizeable {
     }
 
     compute(x: Parameter) {
-        return computeParameter(this.ctx,x)||computeParameter(this,x,false);
+        var vvl=computeParameter(this.ctx,x);
+        if (vvl instanceof Error){
+            vvl=false;
+        }
+        return vvl||computeParameter(this,x,false);
     }
 
     constructor(private t: Operation, private ctx: Binding) {

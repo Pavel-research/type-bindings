@@ -95,8 +95,12 @@ const GENERIC_GROUP = "Generic";
 const ADVANCED_GROUP = "Advanced";
 const OTHER_GROUP = "Other";
 
-export function interpolate(str: string, props: any) {
-    return str.replace(/\${(\w+)\}/g, function (match, expr) {
+export function interpolate(str: string, props: any,t:types.Type) {
+    return str.replace(/\${((\w|\.)+)\}/g, function (match, expr) {
+        var rs=resolver(expr,props,t);
+        if (rs){
+            return INSTANCE.label(rs.value,rs.type);
+        }
         return (props )[expr];
     });
 }
@@ -300,6 +304,28 @@ function addDeps(v: any) {
 export interface IExecutor{
     executeOperation(op: types.Operation,parameters:{ [name:string]:any},cb:(r:any)=>void)
 }
+export interface TypedValue{
+    value: any
+    type: types.Type
+}
+export function resolver(v:string,val:any,t:types.Type):TypedValue{
+    if (val[v]){
+        var p=INSTANCE.property(t,v);
+        return { value:val[v],type: p?p.type:types.TYPE_ANY};
+    }
+    var point=v.indexOf('.');
+    if (point!=-1){
+        var base=v.substr(0,point);
+
+        var q=val[base];
+        if (q){
+            var p=INSTANCE.property(t,base);
+            return resolver(v.substring(point+1),q,p?p.type:types.TYPE_ANY);
+        }
+        return null;
+    }
+    return null;
+}
 export class TypeService implements IExecutor{
 
     private instanceMap: WeakMap<any,types.Type> = new WeakMap();
@@ -337,8 +363,12 @@ export class TypeService implements IExecutor{
     icon(v:any,t:types.Type){
         var vl=(<metakeys.Icon>t).icon;
         if (vl){
-            if (v[vl]){
-                return v[vl]
+            var re=resolver(vl,v,t);
+            if (re){
+                if(typeof re.value=="string") {
+                    return re.value;
+                }
+                return this.icon(re.value,re.type);
             }
             if ((<metakeys.Icon>t).defaultIcon){
                 return (<metakeys.Icon>t).defaultIcon
@@ -346,6 +376,7 @@ export class TypeService implements IExecutor{
             return vl;
         }
     }
+
 
     isNumber(t: types.Type) {
         return this.isSubtypeOf(t, types.TYPE_NUMBER);
@@ -688,10 +719,15 @@ export class TypeService implements IExecutor{
             }
             else {
                 if (m.label.indexOf("{") != -1) {
-                    return interpolate(m.label, v);
+                    return interpolate(m.label, v,t);
                 }
                 else {
-                    return v[m.label];
+                    var rs= v[m.label];
+                    var ps=this.property(t,m.label);
+                    if (ps){
+                        return this.label(rs,ps.type);
+                    }
+                    return rs;
                 }
             }
         }
@@ -721,6 +757,9 @@ export class TypeService implements IExecutor{
             return "" + v;
         }
         if (isNullOrUndefined(v)) {
+            return "";
+        }
+        if (isNaN(v)){
             return "";
         }
     }

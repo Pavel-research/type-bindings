@@ -80,7 +80,9 @@ export interface OwningCollection{
     owningCollection?:types.CollectionBinding|types.IBinding
     uniquinessException?:any
 }
-
+export interface Representation{
+    representation?:string
+}
 export interface Unique{
     unique?:boolean
     uniqueValue?:boolean
