@@ -3,7 +3,7 @@ import  meta=require("./metaKeys")
 import  cb=require("./collectionBindings")
 import request=require("superagent")
 import {isNullOrUndefined} from "util";
-import {Binding} from "./types";
+import {Binding, Thenable} from "./types";
 export enum ParameterLocation{
     URL, QUERY, HEADER, BODY, FORM
 }
@@ -30,6 +30,32 @@ class BasicThenable implements types.Thenable {
     then(f: (error: any, ev: any,extra:any) => void) {
         this.cb = f;
     }
+}
+class AllThenable extends BasicThenable{
+
+    map:Map<types.Thenable,any>=new Map();
+
+    constructor(private all:types.Thenable[]){
+        super();
+        all.forEach(x=>x.then((e,v,extra)=>{
+            this.map.set(x,[e,v,extra]);
+            if (this.map.size==all.length){
+                var result=[];
+                var error=null;
+                this.map.forEach((v,k)=>{
+                     var m:[any,any,any]=v;
+                     result.push([k,v[1]]);
+                     if (v[0]){
+                        error=v;
+                     }
+                })
+                this.cb(error,result,null);
+            }
+        }))
+    }
+}
+function all(b:types.Thenable[]):Thenable{
+    return new AllThenable(b);
 }
 function parameterize(r: Request, name: string, v: any): Request {
     var rs = {
@@ -361,6 +387,7 @@ function getQueryVariable(query:string,variable) {
     }
     return null;
 }
+export const RESULTS_TO_DOWNLOAD=600;
 export class BasicPagedCollection extends PagedCollection {
 
     private info: PagedCollectionInfo
@@ -428,7 +455,7 @@ export class BasicPagedCollection extends PagedCollection {
             this.dynamicUrl = true;
         }
     }
-    all():any[]{
+    all(){
         //FIXME
         return this.collectionBinding().workingCopy();
     }
@@ -573,6 +600,22 @@ export class BasicPagedCollection extends PagedCollection {
                     this.totalResults = this.value.length;
                 }
             }
+            if (this.shouldGetAll()){
+                this.requestAll().then((e,v)=>{
+                    if (!e) {
+                        this.value = v;
+                        this.totalResults=v.length;
+                        this._isLoading=false;
+                        if (this._cb) {
+                            this._cb.refresh();
+                            //refresh cb
+                        }
+                        this.changed();
+                    }
+                });
+                this.totalResults=this.value.length;
+                //return;
+            }
 
             if (this._cb) {
                 this._cb.refresh();
@@ -580,6 +623,41 @@ export class BasicPagedCollection extends PagedCollection {
             this._isLoading = false;
             this.changed();
         });
+    }
+    shouldGetAll(){
+        if ((this._pageCount>1&&this.value.length*this._pageCount<RESULTS_TO_DOWNLOAD)||(this.totalResults>0&&this.totalResults<RESULTS_TO_DOWNLOAD)){
+            return true;
+        }
+        return false;
+    }
+    requestAll():types.Thenable{
+        var components:types.Thenable[]=[];
+        var thenableResults=[];
+        for (var i=0;i<this.pageCount();i++){
+            var lr = this.info.getPage(i, 0, this.allParameterBindings());//all storage
+            if (authServiceHolder.service) {
+                lr = authServiceHolder.service.patchRequest(this, lr);
+            }
+            var ir=this.executor.execute(lr);
+            (<any>ir).index=i;
+            components.push(ir);
+        }
+        var allReady=new BasicThenable();
+        all(components).then((e,v)=>{
+            var x:any[][]=v;
+            x.forEach(val=>{
+                thenableResults[val[0].index]=val[1];
+            })
+            var allResults:any[]=[]
+            thenableResults.forEach(r=>{
+                allResults=allResults.concat(r);
+            })
+            if (allReady.cb){
+                allReady.cb(null,allResults,null);
+            }
+            //console.log(allResults);
+        });
+        return allReady;
     }
     _pageCount:number=-1;
 
