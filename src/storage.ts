@@ -531,7 +531,10 @@ export class BasicPagedCollection extends PagedCollection {
         }
         return null;
     }
-
+    _canSortLocally=false;
+    canSortLocally(){
+        return this._canSortLocally;
+    }
     requestPage(num: number) {
         if (!this._isLoading) {
             this._isLoading = true;
@@ -606,6 +609,7 @@ export class BasicPagedCollection extends PagedCollection {
                         this.value = v;
                         this.totalResults=v.length;
                         this._isLoading=false;
+                        this._canSortLocally=true;
                         if (this._cb) {
                             this._cb.refresh();
                             //refresh cb
@@ -613,8 +617,12 @@ export class BasicPagedCollection extends PagedCollection {
                         this.changed();
                     }
                 });
+                this._canSortLocally=false;
                 this.totalResults=this.value.length;
                 //return;
+            }
+            else{
+                this._canSortLocally=false;
             }
 
             if (this._cb) {

@@ -5,7 +5,7 @@ import types=require("./types")
 import metakeys=require("./metaKeys")
 import moment=require("moment")
 import pluralize=require("pluralize")
-import {Binding, Operation} from "./types";
+import {Binding, Operation, Property} from "./types";
 import {isArray} from "util";
 import set = Reflect.set;
 import storage=require("./storage")
@@ -782,6 +782,39 @@ export class TypeService implements IExecutor{
 
 
         var val = target[name];
+        if (val) {
+            if (typeof val == "function") {
+                return (<Function>val).apply(target);
+            }
+        }
+        return val;
+    }
+    compare(v0:any,v1:any,t:types.Type){
+        let cf=(<metakeys.HasComparator>t).compareFunction;
+        if (cf){
+            return cf(v0,v1);
+        }
+        var lab0=this.label(v0,t);
+        var lab1=this.label(v1,t);
+        return lab0.localeCompare(lab1);
+    }
+
+    getValueWithProp(t: types.Type, target: any, prop: Property) {
+        if (!target) {
+            return null;
+        }
+        if (prop) {
+            var func: types.FunctionalValue = prop.type;
+            if (func.computeFunction) {
+                var bnd:types.Binding=null;
+                if (!bnd) {
+                    bnd = types.binding(target, t);
+                }
+                return types.calcExpression(func.computeFunction, bnd);
+            }
+
+        }
+        var val = target[prop.id];
         if (val) {
             if (typeof val == "function") {
                 return (<Function>val).apply(target);

@@ -19,6 +19,19 @@ export interface Label{
     htmlLabel?:boolean
     cellSize?: number
 }
+export interface OrderingMapping{
+    property?: string
+    descending?: boolean
+}
+export interface OrderingMappings{
+    [name:string]: string |OrderingMapping
+}
+export interface Ordering{
+    ordering?:OrderingMappings
+}
+export interface HasComparator{
+    compareFunction?(v0:any,v1:any):number
+}
 export interface KeyProp{
     keyProp?: string
 }

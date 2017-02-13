@@ -146,6 +146,27 @@ service.register(TYPE_RELATION);
 service.register(TYPE_TEXT);
 service.register(TYPE_MARKDOWN);
 service.register(TYPE_MAP);
+
+(<metakeys.HasComparator>TYPE_DATE).compareFunction=(x0:any,x1:any)=>{
+    if (x0&&x1){
+        var d0=new Date(x0);
+        var d1=new Date(x1);
+        return d0.getTime()-d1.getTime();
+    }
+    if (x0){
+        return 1;
+    }
+    return -1;
+}
+(<metakeys.HasComparator>TYPE_NUMBER).compareFunction=(x0:any,x1:any)=>{
+    if (x0&&x1){
+       return x0-x1;
+    }
+    if (x0){
+        return 1;
+    }
+    return -1;
+}
 export function declareMeta(t: Type, v: any) {
     Object.keys(v).forEach(k => t[k] = v[k])
 }
@@ -1311,6 +1332,7 @@ export interface Module {
         [name: string]: ConversionRule
     }
 }
+import cu=require("./collectionUtils")
 export class ViewBinding extends Binding {
     protected _paramBindings: Binding[];
     protected _allParamBindings: Binding[];
@@ -1321,11 +1343,43 @@ export class ViewBinding extends Binding {
 
     parameterModifyCount = 0;
 
+    processOrderingChange(ord:metakeys.OrderingMappings,v:any){
+        var o=ord[v];
+        var asc=false;
+        var prop=null;
+        if (typeof o=="object"){
+            asc=!o.descending;
+            prop=o.property;
+        }
+        else{
+            prop=o;
+        }
+        if (this.canSortLocally()){
+            this.value=cu.sort(this.value,this.collectionBinding().componentType(),prop,asc);
+            this._cb.refresh();
+            this.changed();
+        }
+        else{
+            this.innerParametersChanged();
+        }
+    }
+    canSortLocally(){
+        return false;
+    }
+
     parametersChanged() {
         this.parameterModifyCount++;
         var cp = this.parameterModifyCount;
         if (this._parametersOwnerBinding.getLastEvent()) {
-            var tp = this._parametersOwnerBinding.getLastEvent().source.type();
+            var pdnd=this._parametersOwnerBinding.getLastEvent().source;
+            var tp = pdnd.type();
+            var ordering=(<metakeys.Ordering>tp).ordering;
+            if (ordering){
+                var value=pdnd.get();
+                this.processOrderingChange(ordering,value);
+                //this.sort()
+                return;
+            }
             if (tp.enum || (<metakeys.EnumValues>tp).enumValues || service.isBoolean(tp)) {
                 this.innerParametersChanged();
                 return;
@@ -1337,6 +1391,7 @@ export class ViewBinding extends Binding {
             }
         }, 800)//FIXME
     }
+
     innerParametersChanged(){
         this.value = null;
         this.changed();
@@ -1516,7 +1571,7 @@ export function unidirectional(b1: IBinding, b2: Binding) {
                 v=[];
             }
             if (!Array.isArray(v)){
-                v=[v];
+                v=[v]
             }
             b2.collectionBinding().setSelection(v);
         }
