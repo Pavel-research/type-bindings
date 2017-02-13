@@ -1511,7 +1511,14 @@ export import setAuthService= storage.setAuthServive
 export function unidirectional(b1: IBinding, b2: Binding) {
     b1.addListener({
         valueChanged(){
-            b2.collectionBinding().setSelection(b1.get());
+            var v=b1.get();
+            if (!v){
+                v=[];
+            }
+            if (!Array.isArray(v)){
+                v=[v];
+            }
+            b2.collectionBinding().setSelection(v);
         }
     })
 }

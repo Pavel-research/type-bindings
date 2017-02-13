@@ -26,7 +26,7 @@ export class CompositeValidator implements InstanceValidator {
         if (sts.length > 0) {
             var message = sts.map(x => x.message).join(", ");
             if (this._errorMessage) {
-                return error(types.ts.interpolate(this._errorMessage, b.type()), sts[0].path, b.uid(),sts);
+                return error(types.ts.interpolate(this._errorMessage, <any>b.type(),<any>b.type()), sts[0].path, b.uid(),sts);
             }
             return error(message, b.uid(),sts[0].path, sts);
         }
