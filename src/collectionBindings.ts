@@ -116,6 +116,7 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
         try {
             var s = this.selectionBinding()
             var r = s.readonly;
+            var old=this.getSelection();
             s.readonly = false;
             if (v.length == 1) {
                 s.set(v[0]);
@@ -133,7 +134,14 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
                 this.change();
             }
             else{
-                this.pb.fireEvent(null);
+                this.pb.fireEvent({
+                    kind: "change",
+                    source: s,
+                    target: this,
+                    oldValue: old,
+                    newValue: v,
+                    subKind: "selection"
+                });
             }
         }
     }

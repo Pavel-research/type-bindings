@@ -11,7 +11,7 @@ import set = Reflect.set;
 import storage=require("./storage")
 import {isNullOrUndefined} from "util";
 import utils=require("./utils")
-
+import decorators=require("./decorators")
 let applyProp = function (superP: types.Type, result: {}) {
     if (superP) {
         if (typeof superP == "string") {
@@ -95,15 +95,7 @@ const GENERIC_GROUP = "Generic";
 const ADVANCED_GROUP = "Advanced";
 const OTHER_GROUP = "Other";
 
-export function interpolate(str: string, props: any,t:types.Type) {
-    return str.replace(/\${((\w|\.)+)\}/g, function (match, expr) {
-        var rs=resolver(expr,props,t);
-        if (rs){
-            return INSTANCE.label(rs.value,rs.type);
-        }
-        return (props )[expr];
-    });
-}
+
 function setupGroups(ps: types.Property[], t: types.Type) {
     if (!ps) {
         return;
@@ -362,19 +354,7 @@ export class TypeService implements IExecutor{
 
     icon(v:any,t:types.Type){
         var vl=(<metakeys.Icon>t).icon;
-        if (vl){
-            var re=resolver(vl,v,t);
-            if (re){
-                if(typeof re.value=="string") {
-                    return re.value;
-                }
-                return this.icon(re.value,re.type);
-            }
-            if ((<metakeys.Icon>t).defaultIcon){
-                return (<metakeys.Icon>t).defaultIcon
-            }
-            return vl;
-        }
+        return decorators.icon(vl,v,t);
     }
 
 
@@ -713,55 +693,9 @@ export class TypeService implements IExecutor{
 
     label(v: any, t: types.Type): string {
         var m: metakeys.Label = <any>this.resolvedType(t);
-        if (m.label) {
-            if (typeof m.label == "function") {
-                return m.label(v);
-            }
-            else {
-                if (m.label.indexOf("{") != -1) {
-                    return interpolate(m.label, v,t);
-                }
-                else {
-                    var rs= v[m.label];
-                    var ps=this.property(t,m.label);
-                    if (ps){
-                        return this.label(rs,ps.type);
-                    }
-                    return rs;
-                }
-            }
-        }
 
-        if (v && typeof v == "object") {
-            if (v.$key) {
-                return v.$key
-            }
-            if (v.name) {
-                return this.getValue(t, v, "name");
-            }
-            else if (v.title) {
-                return this.getValue(t, v, "title");
-            }
-            else if (v.label) {
-                return this.getValue(t, v, "label");
-            }
-
-            return t.displayName;
-        }
-        if (typeof v == "array") {
-            var ll: any[] = v;
-            var it = (<types.ArrayType>t).itemType;
-            return ll.map(x => this.label(x, <types.Type>it)).join(",");
-        }
-        if (v) {
-            return "" + v;
-        }
-        if (isNullOrUndefined(v)) {
-            return "";
-        }
-        if (isNaN(v)){
-            return "";
-        }
+        const label2 = m.label;
+        return decorators.calculateLabel(label2,v,t);
     }
 
     getValue(t: types.Type, target: any, name: string, bnd?: types.IGraphPoint) {

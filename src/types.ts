@@ -6,6 +6,7 @@ import pluralize=require("pluralize")
 import moments=require("moment")
 export import service=ts.INSTANCE;
 export import utils=require("./utils")
+export import decorators=require("./decorators")
 export interface Type {
     type?: (Type|string)[] | (Type|string)
     id: string
@@ -201,6 +202,7 @@ export interface ChangeEvent {
     target: any
     oldValue: any
     newValue: any
+    subKind?: string
 }
 
 export interface IValueListener {

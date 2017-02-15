@@ -54,6 +54,24 @@ export interface GroupBy{
     possibleGroupings?: string[]
 }
 
+export interface LabelDecorator{
+    when: string
+    title?: string
+    details?: string
+    status?: string
+    image?: string
+    replace?: boolean
+    html?: boolean
+    class?: string
+    background?: string
+    color?: string
+    align?: "left"|"right"
+    itemTransform?: LabelDecorator
+}
+
+export interface Decorators{
+    labelDecorators: {[name:string]: LabelDecorator}
+}
 export interface DefaultColumns{
     columns?: string[]
 }
