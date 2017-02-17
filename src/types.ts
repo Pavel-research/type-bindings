@@ -110,7 +110,7 @@ export const TYPE_DATE: Type = <Type&metakeys.Label>{
             nextWeek: 'dddd',
             lastDay: '[Yesterday]',
             lastWeek: '[Last] dddd',
-            sameElse: 'DD/MM/YYYY'
+            sameElse: 'MM/DD/YYYY'
         })
         if (vl == "Today") {
             return m.fromNow();
@@ -147,7 +147,7 @@ service.register(TYPE_RELATION);
 service.register(TYPE_TEXT);
 service.register(TYPE_MARKDOWN);
 service.register(TYPE_MAP);
-
+(<any>window).moments=moments;
 (<metakeys.HasComparator>TYPE_DATE).compareFunction=(x0:any,x1:any)=>{
     if (x0&&x1){
         var d0=new Date(x0);
@@ -263,6 +263,7 @@ export interface IBinding extends IGraphPoint,IContext {
     removeOperation();
     updateOperation();
     autoCommit(): boolean;
+    enumeratedValues():IBinding
 }
 export interface IAccessControl {
 
@@ -399,6 +400,9 @@ export abstract class AbstractBinding extends ListenableValue<any> implements IB
     }
 
     addOperation() {
+        return null;
+    }
+    enumeratedValues(){
         return null;
     }
 
@@ -779,6 +783,7 @@ export class Binding extends AbstractBinding implements IBinding {
             newValue: v,
             target: this._parent ? this._parent.get() : null
         };
+        this.beforeChange(ev);
         if (this._parent && this.id) {
             var s = this._parent.get();
             if (!s) {
@@ -798,6 +803,13 @@ export class Binding extends AbstractBinding implements IBinding {
             this.changing = false;
         }
     }
+    protected beforeChange(e:ChangeEvent){
+        this.beforeChangeListeners.forEach(x=>x.valueChanged(e));
+        if (this._parent){
+            this._parent.beforeChange(e);
+        }
+    }
+    beforeChangeListeners:IValueListener[]=[];
 
     changing = false;
 
@@ -872,6 +884,62 @@ export class Binding extends AbstractBinding implements IBinding {
             this.refreshing = false;
         }
     }
+    private _enum: Binding
+    private _btransform: (x:any)=>any
+    private _transform: (x:any)=>any
+
+    fromReferenceToOriginal(v:any):any{
+        if (!this._btransform){
+            this.enumeratedValues();
+        }
+        if (!this._btransform){
+            return v;
+
+        }
+        return this._btransform(v);
+    }
+
+    fromOriginalToReference(x:any):any{
+        if (!this._transform){
+            this.enumeratedValues();
+        }
+        if (!this._transform){
+            return x;
+
+        }
+        return this._transform(x);
+    }
+
+    enumeratedValues():IBinding{
+        if (this._enum){
+            return this._enum;
+        }
+        if (this.type().enum){
+            this._enum=new Binding("$enum");
+            this._enum.value=this.type().enum;
+            this._enum._type=array(this._type);
+        }
+        var ev=(<metakeys.EnumValues>this.type()).enumValues;
+        if (ev){
+            var eb=new ComputedBinding("$enum",(x)=>{
+
+            },false,this);
+            this.addPrecomitListener({
+                valueChanged(e){
+                    eb.refresh();
+                }
+            })
+            eb._type=this._type;
+            this._enum=eb;
+        }
+        else {
+            var _enumOptions = enumOptionsBinding(this.type(), this);
+            if (_enumOptions) {
+                this._enum = _enumOptions.collection;
+            }
+        }
+        return this._enum;
+    }
 
     constructor(n: string) {
         super();
@@ -880,6 +948,25 @@ export class Binding extends AbstractBinding implements IBinding {
 
     id() {
         return this._id;
+    }
+    referencedType(){
+        var ref = (<metakeys.Reference>this.type()).reference;
+        if (ref) {
+            var tr: (x: any) => any = null;
+            var btr: (x: any) => any = null;
+            if (typeof ref == "string") {
+                var cmp = service.resolveTypeByName(ref);
+                if (cmp.id == "any") {
+                    var nnn = <string>ref;
+                    if (nnn.indexOf('.') != -1) {
+                        var cmp = service.resolveTypeByName(nnn.substring(0, nnn.indexOf('.')));
+                        if (cmp.id!="any"){
+                        return cmp}
+                    }
+                    }
+                }
+            }
+            return null;
     }
 
 
@@ -1345,10 +1432,19 @@ export class ViewBinding extends Binding {
 
     parameterModifyCount = 0;
 
-    processOrderingChange(ord:metakeys.OrderingMappings,v:any){
+    processOrderingChange(){
+        var ord=null;
+        var v:any;
+        this.parameterBindings().forEach(x=>{
+            if ((<metakeys.Ordering>x.type()).ordering){
+                ord=(<metakeys.Ordering>x.type()).ordering;
+                v=x.value;
+            }
+        })
         var o=ord[v];
         var asc=false;
         var prop=null;
+
         if (typeof o=="object"){
             asc=!o.descending;
             prop=o.property;
@@ -1356,8 +1452,24 @@ export class ViewBinding extends Binding {
         else{
             prop=o;
         }
-        if (this.canSortLocally()){
-            this.value=cu.sort(this.value,this.collectionBinding().componentType(),prop,asc);
+        this.parameterBindings().forEach(x=>{
+            if ((<metakeys.Ordering>x.type()).sortDirection){
+                var vl=x.value;
+                if (vl=="asc"){
+                    asc=true;
+                }
+            }
+        })
+        if (this.hasAllData()){
+            if (this.localFilters){
+                this.localFilters.base=cu.sort(this.localFilters.base,this.collectionBinding().componentType(),prop,asc)
+                this.localFilters.setBase(this.value,this.collectionBinding().componentType());
+                this.localFilters.set(ord,v);
+                this.value=this.localFilters.filtered;
+            }
+            else{
+                this.value=cu.sort(this.value,this.collectionBinding().componentType(),prop,asc);
+            }
             this._cb.refresh();
             this.changed();
         }
@@ -1365,7 +1477,69 @@ export class ViewBinding extends Binding {
             this.innerParametersChanged();
         }
     }
-    canSortLocally(){
+
+    localFilters:cu.FilteredCollection
+
+    beforeLocalFilters:any;
+
+    sortDirectionParameter():IBinding{
+        var result:IBinding=null;
+        this.parameterBindings().forEach(x=>{
+            if ((<metakeys.Ordering>x.type()).sortDirection){
+                result=x;
+            }
+        })
+        return result;
+    }
+
+    processFilteringChange(pbnd:IBinding,ord:metakeys.Filter&Type,v:any){
+        if (this.hasAllData()){
+            if (!this.localFilters){
+                this.beforeLocalFilters=this.oldParameters;
+                if (this.beforeLocalFilters[pbnd.id()]){
+                    this.potentiallyDelayChange(pbnd);
+                    return;
+                }
+                this.localFilters=new cu.FilteredCollection();
+                this.localFilters.setBase(this.value,this.collectionBinding().componentType());
+                this.localFilters.set(ord,v);
+                this.value=this.localFilters.filtered;
+                this._cb.refresh();
+                this.changed();
+            }
+            else{
+                if (this.beforeLocalFilters[pbnd.id()]){
+                    this.localFilters=null;
+                    this.potentiallyDelayChange(pbnd);
+                    return;
+                }
+                else{
+                    this.localFilters.set(ord,v);
+                    this.value=this.localFilters.filtered;
+                    this._cb.refresh();
+                    this.changed();
+                }
+            }
+            //we already have enough data to filter locally;
+        }
+        else{
+            this.potentiallyDelayChange(pbnd)
+        }
+    }
+    potentiallyDelayChange(pbnd:IBinding){
+        if (pbnd&&pbnd.enumeratedValues()) {
+            this.innerParametersChanged();
+            return;
+        }
+        var cp = this.parameterModifyCount;
+        setTimeout(x => {
+            if (cp == this.parameterModifyCount) {
+                this.innerParametersChanged();
+            }
+        }, 800)//FIXME
+    }
+
+    hasAllData(){
         return false;
     }
 
@@ -1378,20 +1552,26 @@ export class ViewBinding extends Binding {
             var ordering=(<metakeys.Ordering>tp).ordering;
             if (ordering){
                 var value=pdnd.get();
-                this.processOrderingChange(ordering,value);
+                this.processOrderingChange();
                 //this.sort()
                 return;
             }
-            if (tp.enum || (<metakeys.EnumValues>tp).enumValues || service.isBoolean(tp)) {
-                this.innerParametersChanged();
+            var sd=(<metakeys.Ordering>tp).sortDirection;
+            if (sd){
+                var value=pdnd.get();
+                this.processOrderingChange();
+                //this.sort()
+                return;
+            }
+            var filter=(<metakeys.Filter&Type>tp).filter;
+            if (filter){
+                var value=pdnd.get();
+                this.processFilteringChange(pdnd,(<metakeys.Filter&Type>tp),value);
+                //this.sort()
                 return;
             }
         }
-        setTimeout(x => {
-            if (cp == this.parameterModifyCount) {
-                this.innerParametersChanged();
-            }
-        }, 800)//FIXME
+        this.potentiallyDelayChange(pdnd);
     }
 
     innerParametersChanged(){
@@ -1414,7 +1594,7 @@ export class ViewBinding extends Binding {
         this.parameterBindings();
         return this._allParamBindings;
     }
-
+    private oldParameters:any
     parameterBindings(): Binding[] {
         if (this._paramBindings) {
             return this._paramBindings;
@@ -1427,9 +1607,15 @@ export class ViewBinding extends Binding {
             type: "object",
             properties: {}
         }
+        var bnd=this;
         this._parametersOwnerBinding = new Binding("");
         this._parametersOwnerBinding._type = parameterType;
         this._parametersOwnerBinding.value = {};
+        this._parametersOwnerBinding.beforeChangeListeners.push({
+            valueChanged(e){
+                bnd.oldParameters=utils.deepCopy(bnd._parametersOwnerBinding.value);
+            }
+        })
         var b = this;
         if (ps) {
             ps.forEach(p => parameterType.properties[p.id] = {
@@ -1498,6 +1684,10 @@ export import calcExpression=compute.calcExpression;
 export import calcCondition=compute.calcCondition;
 
 export class StatusBinding extends ComputedBinding implements IValueListener {
+
+    refresh(){
+        this.valueChanged(null)
+    }
     constructor(p: Binding) {
         super("$status", v => {
             var validator = vs.INSTANCE.validator(p.type());
@@ -1557,8 +1747,15 @@ export function enumOptionsBinding(t: Type, c: IBinding): EnumResult {
         }
         var lsts = service.listers(cmp);
         if (lsts.length > 0) {
+            if ((<any>c)._enum){
+                var st:storage.BasicPagedCollection=(<any>c)._enum;
+                return {collection: ((<any>c)._enum), transformer: tr, btrasform: btr};
+            }
             var st = new storage.BasicPagedCollection(lsts[0].id, lsts[0], c);
             st.context = c;
+            (<any>c)._enum=st;
+            (<any>c)._btransform=btr;
+            (<any>c)._transform=tr;
             return {collection: st, transformer: tr, btrasform: btr};
         }
     }

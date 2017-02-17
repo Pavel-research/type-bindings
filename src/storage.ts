@@ -25,36 +25,36 @@ export interface Request {
 
 class BasicThenable implements types.Thenable {
 
-    cb: (error: any, v: any,extra:any) => void;
+    cb: (error: any, v: any, extra: any) => void;
 
-    then(f: (error: any, ev: any,extra:any) => void) {
+    then(f: (error: any, ev: any, extra: any) => void) {
         this.cb = f;
     }
 }
-class AllThenable extends BasicThenable{
+class AllThenable extends BasicThenable {
 
-    map:Map<types.Thenable,any>=new Map();
+    map: Map<types.Thenable,any> = new Map();
 
-    constructor(private all:types.Thenable[]){
+    constructor(private all: types.Thenable[]) {
         super();
-        all.forEach(x=>x.then((e,v,extra)=>{
-            this.map.set(x,[e,v,extra]);
-            if (this.map.size==all.length){
-                var result=[];
-                var error=null;
-                this.map.forEach((v,k)=>{
-                     var m:[any,any,any]=v;
-                     result.push([k,v[1]]);
-                     if (v[0]){
-                        error=v;
-                     }
+        all.forEach(x => x.then((e, v, extra) => {
+            this.map.set(x, [e, v, extra]);
+            if (this.map.size == all.length) {
+                var result = [];
+                var error = null;
+                this.map.forEach((v, k) => {
+                    var m: [any, any, any] = v;
+                    result.push([k, v[1]]);
+                    if (v[0]) {
+                        error = v;
+                    }
                 })
-                this.cb(error,result,null);
+                this.cb(error, result, null);
             }
         }))
     }
 }
-function all(b:types.Thenable[]):Thenable{
+function all(b: types.Thenable[]): Thenable {
     return new AllThenable(b);
 }
 function parameterize(r: Request, name: string, v: any): Request {
@@ -95,10 +95,16 @@ function parameterizeBinding(r: Request, b: types.Binding[]): Request {
         url: r.url,
         method: r.method,
         parameters: r.parameters.concat(b.map(x => {
+            var val = x.get();
+            if (x.type().collectionFormat) {
+                if (Array.isArray(val) && x.type().collectionFormat == "csv") {
+                    val = val.join(",");
+                }
+            }
             return {
                 name: x._id,
                 location: getLocation((<types.metakeys.WebCollection>x.type()).location),
-                value: x.get()
+                value: val
             }
         }))
 
@@ -106,18 +112,18 @@ function parameterizeBinding(r: Request, b: types.Binding[]): Request {
 
     return rs;
 }
-export interface Link{
+export interface Link {
     link: string,
     rel: string
 }
-export function linkHeadersParser(lp:string):Link[]{
-    lp=lp.substring(1);
-    var headers=lp.split(`", <`);
-    return headers.map(x=>{
-        var ri=x.lastIndexOf(';');
-        var link=x.substring(0,ri-1);
+export function linkHeadersParser(lp: string): Link[] {
+    lp = lp.substring(1);
+    var headers = lp.split(`", <`);
+    return headers.map(x => {
+        var ri = x.lastIndexOf(';');
+        var link = x.substring(0, ri - 1);
 
-        var rel=x.substring(x.lastIndexOf('=')+2);
+        var rel = x.substring(x.lastIndexOf('=') + 2);
         return {
             link: link,
             rel: rel
@@ -165,7 +171,7 @@ class RequestExecutor {
         if (r.auth) {
             rr.auth(r.auth.user, r.auth.password);
         }
-        rr=rr.query({"$timestamp":""+new Date().getMilliseconds()})
+        rr = rr.query({"$timestamp": "" + new Date().getMilliseconds()})
         //rr.set("Cache-Control","max-age=0")
         var result = new BasicThenable();
 
@@ -173,18 +179,18 @@ class RequestExecutor {
             var body = res.body;
             //console.log("Completed")
             if (result.cb) {
-                result.cb(err, body,res);
+                result.cb(err, body, res);
             }
         })
         return result;
     }
 }
-class OperationInfo{
+class OperationInfo {
 
     template: Request;
-    errorMessage:string
+    errorMessage: string
 
-    constructor(t:types.Operation&any){
+    constructor(t: types.Operation&any) {
         var req: Request = {
             method: t.method ? t.method.toUpperCase() : "GET",
             url: t.location,
@@ -199,7 +205,7 @@ class OperationInfo{
     }
 }
 
-class PagedCollectionInfo extends OperationInfo{
+class PagedCollectionInfo extends OperationInfo {
 
 
     pageParameterName: string
@@ -328,7 +334,7 @@ export abstract class PagedCollection extends types.ViewBinding {
 
     abstract updateOperation(): types.Operation;
 
-    abstract  pageCount():number
+    abstract  pageCount(): number
 }
 
 function needsAuthentification(ts: types.Operation) {
@@ -338,46 +344,49 @@ function needsAuthentification(ts: types.Operation) {
         }
     }
 }
-export class UpdatingArrayBinding extends cb.ArrayCollectionBinding{
+export class UpdatingArrayBinding extends cb.ArrayCollectionBinding {
 
     updater: types.Operation;
 
-    constructor(private p: BasicPagedCollection){
+    constructor(private p: BasicPagedCollection) {
         super(p);
-        this.updater=p.updateOperation();
+        this.updater = p.updateOperation();
     }
-    createSelectionBinding(){
-        var selBind=super.createSelectionBinding();
-        selBind._autoCommit=false;
+
+    createSelectionBinding() {
+        var selBind = super.createSelectionBinding();
+        selBind._autoCommit = false;
         return selBind;
     }
 
 
-    replace(oldValue:any,newValue:any){
-        super.replace(oldValue,newValue);
-        var toUpdate=new types.OperationBinding(this.updater,this.pb);
-        var bb=new Binding("context");
+    replace(oldValue: any, newValue: any) {
+        super.replace(oldValue, newValue);
+        var toUpdate = new types.OperationBinding(this.updater, this.pb);
+        var bb = new Binding("context");
         bb.set(oldValue);
-        bb._type=this.componentType();
-        toUpdate.context=bb;
+        bb._type = this.componentType();
+        toUpdate.context = bb;
         this.p.lastRevision++;
-        var ll=this.p.lastRevision;
+        var ll = this.p.lastRevision;
         toUpdate.set(newValue);
-        toUpdate.execute((x)=>{
-            if (this.p.lastRevision==ll) {
+        toUpdate.execute((x) => {
+            if (this.p.lastRevision == ll) {
                 this.p.request();
             }
         })
     }
-    postApplySelection(){
+
+    postApplySelection() {
 
     }
-    applyChangedElement(e:any){
-        this.replace(e,e);
+
+    applyChangedElement(e: any) {
+        this.replace(e, e);
     }
 }
-function getQueryVariable(query:string,variable) {
-    query=query.substring(query.indexOf('?')+1)
+function getQueryVariable(query: string, variable) {
+    query = query.substring(query.indexOf('?') + 1)
     var vars = query.split('&');
     for (var i = 0; i < vars.length; i++) {
         var pair = vars[i].split('=');
@@ -387,7 +396,7 @@ function getQueryVariable(query:string,variable) {
     }
     return null;
 }
-export const RESULTS_TO_DOWNLOAD=600;
+export const RESULTS_TO_DOWNLOAD = 600;
 export class BasicPagedCollection extends PagedCollection {
 
     private info: PagedCollectionInfo
@@ -400,11 +409,11 @@ export class BasicPagedCollection extends PagedCollection {
 
     protected currentPageNum = 0;
 
-    request(){
+    request() {
         this.requestPage(this.currentPageNum);
     }
 
-    lastRevision=0;
+    lastRevision = 0;
 
     protected adder: types.Operation;
     protected remover: types.Operation;
@@ -426,8 +435,8 @@ export class BasicPagedCollection extends PagedCollection {
         return new RESTAccessControl(this);
     }
 
-    innerParametersChanged(){
-        this.currentPageNum=0;
+    innerParametersChanged() {
+        this.currentPageNum = 0;
         super.innerParametersChanged();
     }
 
@@ -438,7 +447,7 @@ export class BasicPagedCollection extends PagedCollection {
     constructor(id: string, t: meta.WebCollection, private g: types.IGraphPoint) {
         super(id);
         this.info = new PagedCollectionInfo(t);
-        this._type=<types.Type>t;
+        this._type = <types.Type>t;
         var cp = types.service.componentType(<types.Type>t);
         var constructors = types.service.constructors(cp);
         if (constructors.length > 0) {
@@ -455,10 +464,12 @@ export class BasicPagedCollection extends PagedCollection {
             this.dynamicUrl = true;
         }
     }
-    all(){
+
+    all() {
         //FIXME
         return this.collectionBinding().workingCopy();
     }
+
     refresh() {
         if (this.dynamicUrl && this.g.get()) {
             var vs = this.g.get()[this.id()];
@@ -471,8 +482,9 @@ export class BasicPagedCollection extends PagedCollection {
         }
         //super.refresh();
     }
-    createCollectionBinding():types.CollectionBinding{
-        if (this.updater){
+
+    createCollectionBinding(): types.CollectionBinding {
+        if (this.updater) {
             return new UpdatingArrayBinding(this);
         }
         return super.createCollectionBinding();
@@ -531,10 +543,13 @@ export class BasicPagedCollection extends PagedCollection {
         }
         return null;
     }
-    _canSortLocally=false;
-    canSortLocally(){
+
+    _canSortLocally = false;
+
+    hasAllData() {
         return this._canSortLocally;
     }
+
     requestPage(num: number) {
         if (!this._isLoading) {
             this._isLoading = true;
@@ -547,9 +562,9 @@ export class BasicPagedCollection extends PagedCollection {
             lr = authServiceHolder.service.patchRequest(this, lr);
         }
 
-        var q=this.lastRevision;
-        this.executor.execute(lr).then((err, x,extra) => {
-            if (this.lastRevision!=q){
+        var q = this.lastRevision;
+        this.executor.execute(lr).then((err, x, extra) => {
+            if (this.lastRevision != q) {
                 return;
             }
             if (err) {
@@ -573,27 +588,27 @@ export class BasicPagedCollection extends PagedCollection {
             else {
                 this.value = x;
             }
-            this._pageCount=-1
+            this._pageCount = -1
             if (this.info.totalValueField) {
                 this.totalResults = x[this.info.totalValueField];
             }
             else {
-                if (extra.links){
-                    var lastUrl=extra.links.last;
-                    var firstUrl=extra.links.first;
+                if (extra.links) {
+                    var lastUrl = extra.links.last;
+                    var firstUrl = extra.links.first;
 
-                    if (lastUrl){
-                        var maxPage=getQueryVariable(lastUrl,this.info.pageParameterName);
-                        if (maxPage){
-                            this._pageCount=parseInt(maxPage);
+                    if (lastUrl) {
+                        var maxPage = getQueryVariable(lastUrl, this.info.pageParameterName);
+                        if (maxPage) {
+                            this._pageCount = parseInt(maxPage);
                             this.totalResults = -1;
                         }
                     }
-                    else if (firstUrl){
-                        this._pageCount=this.currentPageNum+1;
+                    else if (firstUrl) {
+                        this._pageCount = this.currentPageNum + 1;
                         this.totalResults = -1;
                     }
-                    else{
+                    else {
                         this.totalResults = this.value.length;
                     }
 
@@ -603,13 +618,13 @@ export class BasicPagedCollection extends PagedCollection {
                     this.totalResults = this.value.length;
                 }
             }
-            if (this.shouldGetAll()){
-                this.requestAll().then((e,v)=>{
+            if (this.shouldGetAll()) {
+                this.requestAll().then((e, v) => {
                     if (!e) {
                         this.value = v;
-                        this.totalResults=v.length;
-                        this._isLoading=false;
-                        this._canSortLocally=true;
+                        this.totalResults = v.length;
+                        this._isLoading = false;
+                        this._canSortLocally = true;
                         if (this._cb) {
                             this._cb.refresh();
                             //refresh cb
@@ -617,12 +632,17 @@ export class BasicPagedCollection extends PagedCollection {
                         this.changed();
                     }
                 });
-                this._canSortLocally=false;
-                this.totalResults=this.value.length;
+                this._canSortLocally = false;
+                this.totalResults = this.value.length;
                 //return;
             }
-            else{
-                this._canSortLocally=false;
+            else {
+                if (this.pageCount() == 1 || (this.value && this.totalResults == this.value.length)) {
+                    this._canSortLocally = true;
+                }
+                else {
+                    this._canSortLocally = false;
+                }
             }
 
             if (this._cb) {
@@ -632,42 +652,46 @@ export class BasicPagedCollection extends PagedCollection {
             this.changed();
         });
     }
-    shouldGetAll(){
-        if ((this._pageCount>1&&this.value.length*this._pageCount<RESULTS_TO_DOWNLOAD)||(this.totalResults>0&&this.totalResults<RESULTS_TO_DOWNLOAD)){
+
+    shouldGetAll() {
+        if ((this._pageCount > 1 && this.value.length * this._pageCount < RESULTS_TO_DOWNLOAD) ||
+            (this.totalResults > 0 && this.value && this.totalResults != this.value.length && this.totalResults < RESULTS_TO_DOWNLOAD)) {
             return true;
         }
         return false;
     }
-    requestAll():types.Thenable{
-        var components:types.Thenable[]=[];
-        var thenableResults=[];
-        for (var i=0;i<this.pageCount();i++){
+
+    requestAll(): types.Thenable {
+        var components: types.Thenable[] = [];
+        var thenableResults = [];
+        for (var i = 0; i < this.pageCount(); i++) {
             var lr = this.info.getPage(i, 0, this.allParameterBindings());//all storage
             if (authServiceHolder.service) {
                 lr = authServiceHolder.service.patchRequest(this, lr);
             }
-            var ir=this.executor.execute(lr);
-            (<any>ir).index=i;
+            var ir = this.executor.execute(lr);
+            (<any>ir).index = i;
             components.push(ir);
         }
-        var allReady=new BasicThenable();
-        all(components).then((e,v)=>{
-            var x:any[][]=v;
-            x.forEach(val=>{
-                thenableResults[val[0].index]=val[1];
+        var allReady = new BasicThenable();
+        all(components).then((e, v) => {
+            var x: any[][] = v;
+            x.forEach(val => {
+                thenableResults[val[0].index] = val[1];
             })
-            var allResults:any[]=[]
-            thenableResults.forEach(r=>{
-                allResults=allResults.concat(r);
+            var allResults: any[] = []
+            thenableResults.forEach(r => {
+                allResults = allResults.concat(r);
             })
-            if (allReady.cb){
-                allReady.cb(null,allResults,null);
+            if (allReady.cb) {
+                allReady.cb(null, allResults, null);
             }
             //console.log(allResults);
         });
         return allReady;
     }
-    _pageCount:number=-1;
+
+    _pageCount: number = -1;
 
     get(): any[] {
         if (!this.info.template.url) {
@@ -702,7 +726,7 @@ export class BasicPagedCollection extends PagedCollection {
     }
 
     pageCount(): number {
-        if (this._pageCount!=-1){
+        if (this._pageCount != -1) {
             return this._pageCount;
         }
         if (this.totalResults) {
@@ -719,29 +743,29 @@ types.service.registerExecutor("rest", {
 
     executeOperation(o: types.Operation, parameters: any, cb: (x: any) => void){
 
-        var opInfo=new OperationInfo(o);
-        o.parameters.forEach(x=>{
-            if (parameters[x.id]){
-                var l:ParameterLocation=ParameterLocation.QUERY
-                if (x.location=="body"){
-                    l=ParameterLocation.BODY;
+        var opInfo = new OperationInfo(o);
+        o.parameters.forEach(x => {
+            if (parameters[x.id]) {
+                var l: ParameterLocation = ParameterLocation.QUERY
+                if (x.location == "body") {
+                    l = ParameterLocation.BODY;
                 }
-                if (x.location=="header"){
-                    l=ParameterLocation.HEADER;
+                if (x.location == "header") {
+                    l = ParameterLocation.HEADER;
                 }
-                if (x.location=="uri"){
-                    l=ParameterLocation.URL;
+                if (x.location == "uri") {
+                    l = ParameterLocation.URL;
                 }
                 opInfo.template.parameters.push({
-                    location:l,
-                    name:x.id,
-                    value:parameters[x.id],
+                    location: l,
+                    name: x.id,
+                    value: parameters[x.id],
                 })
             }
         })
-        var template=opInfo.template;
-        var cm=new Binding(o.id);
-        cm._type=o;
+        var template = opInfo.template;
+        var cm = new Binding(o.id);
+        cm._type = o;
         if (authServiceHolder.service) {
             template = authServiceHolder.service.patchRequest(cm, template);
         }

@@ -34,10 +34,45 @@ export function proxy(tv:any,t:types.Type,bnd?:types.IGraphPoint){
         return rs;
     }
 }
+export interface TypedValue{
+    value: any
+    type: types.Type
+}
+export function resolver(v:string,val:any,t:types.Type):TypedValue{
+    if (val[v]){
+        var p=types.service.property(t,v);
+        return { value:val[v],type: p?p.type:types.TYPE_ANY};
+    }
+    var point=v.indexOf('.');
+    if (point!=-1){
+        var base=v.substr(0,point);
+
+        var q=val[base];
+
+        if (q){
+            var p=types.service.property(t,base);
+            return resolver(v.substring(point+1),q,p?p.type:types.TYPE_ANY);
+        }
+        return null;
+    }
+    if (Array.isArray(val)){
+        var p=types.service.property(types.service.componentType(t),v);
+        if (p) {
+            var rs = val.map(x => x[v]);
+            return { value:rs,type: types.array(p.type)};
+        }
+
+    }
+    return null;
+}
 export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint): any {
     try {
         if (typeof c == "string") {
             var vv = c.charAt(0);
+            var val=resolver(c,v.get(),v.type());
+            if (val){
+                return val.value;
+            }
             if (vv == '@') {
                 var mm = <types.Binding>v;
                 return mm.lookupVar(c.substring(1));

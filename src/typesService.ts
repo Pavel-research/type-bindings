@@ -12,6 +12,7 @@ import storage=require("./storage")
 import {isNullOrUndefined} from "util";
 import utils=require("./utils")
 import decorators=require("./decorators")
+import ce=require("./computationalEngine")
 let applyProp = function (superP: types.Type, result: {}) {
     if (superP) {
         if (typeof superP == "string") {
@@ -301,22 +302,7 @@ export interface TypedValue{
     type: types.Type
 }
 export function resolver(v:string,val:any,t:types.Type):TypedValue{
-    if (val[v]){
-        var p=INSTANCE.property(t,v);
-        return { value:val[v],type: p?p.type:types.TYPE_ANY};
-    }
-    var point=v.indexOf('.');
-    if (point!=-1){
-        var base=v.substr(0,point);
-
-        var q=val[base];
-        if (q){
-            var p=INSTANCE.property(t,base);
-            return resolver(v.substring(point+1),q,p?p.type:types.TYPE_ANY);
-        }
-        return null;
-    }
-    return null;
+    return ce.resolver(v,val,t);
 }
 export class TypeService implements IExecutor{
 
@@ -353,6 +339,7 @@ export class TypeService implements IExecutor{
     }
 
     icon(v:any,t:types.Type){
+        t=this.resolvedType(t);//
         var vl=(<metakeys.Icon>t).icon;
         return decorators.icon(vl,v,t);
     }
@@ -682,6 +669,9 @@ export class TypeService implements IExecutor{
     caption(t: types.Type): string {
         var r = this.resolvedType(t);
         if (r.displayName) {
+            if (r.displayName==r.id){
+                return nicerName(r.id);
+            }
             return r.displayName;
         }
         if (r.id) {

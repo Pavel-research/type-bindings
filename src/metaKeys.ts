@@ -28,6 +28,17 @@ export interface OrderingMappings{
 }
 export interface Ordering{
     ordering?:OrderingMappings
+    sortDirection?: boolean
+}
+export interface Filter{
+    filter?: FilterDescription
+}
+export interface FilterDescription{
+    property?:string
+    valueMappings?:{ [name:string]:string}
+    noFilterValue?: string
+    op?: string
+
 }
 export interface HasComparator{
     compareFunction?(v0:any,v1:any):number
