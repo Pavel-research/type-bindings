@@ -172,14 +172,22 @@ class RequestExecutor {
             rr.auth(r.auth.user, r.auth.password);
         }
         rr = rr.query({"$timestamp": "" + new Date().getMilliseconds()})
+
         //rr.set("Cache-Control","max-age=0")
         var result = new BasicThenable();
 
         rr.end((err: any, res: request.Response) => {
-            var body = res.body;
-            //console.log("Completed")
-            if (result.cb) {
-                result.cb(err, body, res);
+            if (res) {
+                var body = res.body;
+                //console.log("Completed")
+                if (result.cb) {
+                    result.cb(err, body, res);
+                }
+            }
+            else{
+                if (result.cb) {
+                    result.cb(err, null, {});
+                }
             }
         })
         return result;
@@ -216,6 +224,8 @@ class PagedCollectionInfo extends OperationInfo {
 
     totalValueField: string;
 
+    offsetField: string
+
     pagesStartFromZero: boolean
 
 
@@ -231,6 +241,7 @@ class PagedCollectionInfo extends OperationInfo {
         if (pb) {
             this.totalValueField = pb.total;
             this.itemsValueField = pb.results;
+            this.offsetField=pb.offset;
             this.pageParameterName = pb.page;
         }
         if (!t.errorIn) {
@@ -240,6 +251,13 @@ class PagedCollectionInfo extends OperationInfo {
             method: method ? method.toUpperCase() : "GET",
             url: t.location,
             parameters: [{location: ParameterLocation.QUERY, name: this.pageParameterName, value: null}]
+        }
+        if (this.offsetField) {
+            var req: Request = {
+                method: method ? method.toUpperCase() : "GET",
+                url: t.location,
+                parameters: [{location: ParameterLocation.QUERY, name: this.offsetField, value: null}]
+            }
         }
         if (!req.url) {
             if (t.url && t.baseUri) {
@@ -253,7 +271,13 @@ class PagedCollectionInfo extends OperationInfo {
         if (!this.pagesStartFromZero) {
             num = num + 1;
         }
-        var withPage = parameterize(this.template, this.pageParameterName, num);
+        var withPage:Request = null;
+        if (this.offsetField){
+            withPage=parameterize(this.template, this.offsetField, (num-1)*itemsPerPage);
+        }
+        else {
+            withPage = parameterize(this.template, this.pageParameterName, num);
+        }
 
         if (itemsPerPage && this.itemsPerPageParameterName) {
             withPage = parameterize(withPage, this.itemsPerPageParameterName, itemsPerPage);
@@ -405,7 +429,7 @@ export class BasicPagedCollection extends PagedCollection {
 
     protected totalResults: number
 
-    protected itemsPerPage: number
+    protected itemsPerPage: number=0;
 
     protected currentPageNum = 0;
 
@@ -557,7 +581,7 @@ export class BasicPagedCollection extends PagedCollection {
             this.changed();
         }
         //all parameters
-        var lr = this.info.getPage(num, 0, this.allParameterBindings());//all storage
+        var lr = this.info.getPage(num, this.itemsPerPage, this.allParameterBindings());//all storage
         if (authServiceHolder.service) {
             lr = authServiceHolder.service.patchRequest(this, lr);
         }
@@ -581,6 +605,9 @@ export class BasicPagedCollection extends PagedCollection {
                         this._errorMessage = x[this.info.errorMessage]
                     }
                 }
+                this._isLoading=false;
+                this.changed();
+                return;
             }
             if (this.info.itemsValueField) {
                 this.value = x[this.info.itemsValueField];
@@ -618,6 +645,9 @@ export class BasicPagedCollection extends PagedCollection {
                     this.totalResults = this.value.length;
                 }
             }
+            if (this.itemsPerPage==0) {
+                this.itemsPerPage = this.value.length;
+            }
             if (this.shouldGetAll()) {
                 this.requestAll().then((e, v) => {
                     if (!e) {
@@ -654,7 +684,7 @@ export class BasicPagedCollection extends PagedCollection {
     }
 
     shouldGetAll() {
-        if ((this._pageCount > 1 && this.value.length * this._pageCount < RESULTS_TO_DOWNLOAD) ||
+        if (this.collectionBinding().groupBy()||(this._pageCount > 1 && this.value.length * this._pageCount < RESULTS_TO_DOWNLOAD) ||
             (this.totalResults > 0 && this.value && this.totalResults != this.value.length && this.totalResults < RESULTS_TO_DOWNLOAD)) {
             return true;
         }
@@ -665,7 +695,7 @@ export class BasicPagedCollection extends PagedCollection {
         var components: types.Thenable[] = [];
         var thenableResults = [];
         for (var i = 0; i < this.pageCount(); i++) {
-            var lr = this.info.getPage(i, 0, this.allParameterBindings());//all storage
+            var lr = this.info.getPage(i, this.itemsPerPage, this.allParameterBindings());//all storage
             if (authServiceHolder.service) {
                 lr = authServiceHolder.service.patchRequest(this, lr);
             }
@@ -677,7 +707,11 @@ export class BasicPagedCollection extends PagedCollection {
         all(components).then((e, v) => {
             var x: any[][] = v;
             x.forEach(val => {
-                thenableResults[val[0].index] = val[1];
+                var vv=val[1];
+                if (this.info.itemsValueField) {
+                   vv = vv[this.info.itemsValueField];
+                }
+                thenableResults[val[0].index] = vv;
             })
             var allResults: any[] = []
             thenableResults.forEach(r => {
@@ -789,3 +823,85 @@ types.service.registerExecutor("rest", {
         });
     }
 })
+
+declare var $:any
+
+var JSONP = function (global) {
+    // (C) WebReflection Essential - Mit Style
+    // cleaned up by Brett Zamir for JSLint and avoiding additional globals and need for conventional [?&]callback= in URL)
+    // 'use strict'; // Added above
+    var id = 0,
+        ns = 'MediaWikiJS',
+        prefix = '__JSONP__',
+        document = global.document,
+        documentElement = document.documentElement;
+    return function (uri, callback) {
+        var src = prefix + id++,
+            script = document.createElement('script'),
+            JSONPResponse = function () {
+                try { delete global[ns+"_"+src]; } catch(e) { global[ns+"_"+src] = null; }
+                documentElement.removeChild(script);
+                callback.apply(this, arguments);
+            };
+        window[ns+"_"+src]=JSONPResponse;
+            //global[ns][src] = JSONPResponse;
+        (<any>documentElement.insertBefore(
+            script,
+            documentElement.lastChild
+        )).src = uri + (uri.indexOf('?') > -1 ? '&' : '?') + 'callback=' + ns + '_' + src;
+    };
+}(window);
+
+var cache:any={};
+export class RemoteValueBinding extends Binding{
+
+    private executor: RequestExecutor = new RequestExecutor();
+    private loading:boolean;
+
+    refresh(){
+        this.buildRequest();
+        super.refresh();
+    }
+    private cval;
+    private url;
+    buildRequest(){
+        var url:string =this.parent().get("wikiURL");
+        if (url) {
+            var title = url.substring(url.lastIndexOf('/')+1);
+            //console.log(title);
+
+            if (title){
+                var url="https://en.wikipedia.org/w/api.php/?format=json&action=query&prop=extracts&exintro=&explaintext=&titles="+title
+                if (this.url==url){
+                    return;
+                }
+                if (cache[url]){
+                    this.url=url;
+                    this.cval=cache[url];
+                    return;
+                }
+                this.loading=true;
+                JSONP(url,(x)=>{
+                    var kk=Object.keys(x.query.pages)[0]
+                    this.cval=x.query.pages[kk].extract;
+                    this.url=url;
+                    cache[url]=this.cval;
+                    this.loading=false;
+                    this.changed();
+                })
+
+            }
+        }
+    }
+
+    isLoading(){
+        return this.loading;
+    }
+
+
+    get(){
+        this.buildRequest();
+//
+        return this.cval;
+    }
+}

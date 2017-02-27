@@ -39,6 +39,12 @@ export interface TypedValue{
     type: types.Type
 }
 export function resolver(v:string,val:any,t:types.Type):TypedValue{
+    if (!v){
+        return null;
+    }
+    if (!val){
+        return null;
+    }
     if (val[v]){
         var p=types.service.property(t,v);
         return { value:val[v],type: p?p.type:types.TYPE_ANY};

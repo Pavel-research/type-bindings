@@ -5,7 +5,7 @@ import types=require("./types")
 import metakeys=require("./metaKeys")
 import moment=require("moment")
 import pluralize=require("pluralize")
-import {Binding, Operation, Property} from "./types";
+import {Binding, ConversionRule, Operation, Property} from "./types";
 import {isArray} from "util";
 import set = Reflect.set;
 import storage=require("./storage")
@@ -339,6 +339,10 @@ export class TypeService implements IExecutor{
     }
 
     icon(v:any,t:types.Type){
+        if (v instanceof types.HasType){
+            t=v.$type;
+            v=v.$value;
+        }
         t=this.resolvedType(t);//
         var vl=(<metakeys.Icon>t).icon;
         return decorators.icon(vl,v,t);
@@ -395,10 +399,13 @@ export class TypeService implements IExecutor{
         if (module.conversionRules){
             Object.keys(module.conversionRules).forEach(x=>{
                 var cr=module.conversionRules[x];
-                var key=cr.from+"->"+cr.to;
-                this.conversionRules[key]=cr;
+                this.addRule(cr);
             })
         }
+    }
+    addRule(cr:ConversionRule){
+        var key=cr.from+"->"+cr.to;
+        this.conversionRules[key]=cr;
     }
 
     resolvableId(t:types.Type| string){
@@ -432,19 +439,45 @@ export class TypeService implements IExecutor{
             var exp=types.calcExpression(r.selfRule,b);
             return exp;
         }
+        if (r.code){
+            return r.code(vl);
+        }
         return vl;
     }
-
-    convert(targetType : types.Type,sourceType:types.Type,vl:any):any{
-        if (this.isSubtypeOf(sourceType,targetType)){
-            return vl;
+    private lookupConverionRule(targetType : types.Type,sourceType:types.Type){
+        if (!sourceType){
+            return null;
         }
+        if (!targetType){
+            return null;
+        }//
         var sid=this.resolvableId(sourceType);
         var tid=this.resolvableId(targetType);
         var cid=sid+"->"+tid;
         if (this.conversionRules[cid]){
-            return this.executeConversionRule(this.conversionRules[cid],targetType,sourceType,vl);
+            return this.conversionRules[cid];
         }
+        var sm=[sourceType].concat(this.superTypes(sourceType));
+        var qm=this.superTypes(targetType);
+        for (var i=0;i<sm.length;i++){
+            for (var j=0;j<qm.length;j++){
+                var rules=this.lookupConverionRule(qm[j],sm[i]);
+                if (rules){
+                    return rules;
+                }
+            }
+        }
+        return null;
+    }
+    convert(targetType : types.Type,sourceType:types.Type,vl:any):any{
+        if (this.isSubtypeOf(sourceType,targetType)){
+            return vl;
+        }
+        var rule=this.lookupConverionRule(targetType,sourceType);
+        if (rule){
+            return this.executeConversionRule(rule,targetType,sourceType,vl);
+        }
+
         if (this.isArray(targetType)&&this.isArray(sourceType)){
             if (Array.isArray(vl)){
                 return vl.map(x=>{
@@ -546,7 +579,7 @@ export class TypeService implements IExecutor{
     }
 
     isFiniteSetOfInstances(t: types.Type) {
-        return t.enum || (<metakeys.EnumValues>t).enumValues;
+        return t.enum || (<metakeys.EnumValues>t).enumValues|| ((<metakeys.Reference>t).reference&&!this.isArray(t));
     }
 
     normalize(r: types.TypeReference) {
@@ -682,6 +715,10 @@ export class TypeService implements IExecutor{
 
 
     label(v: any, t: types.Type): string {
+        if (v instanceof types.HasType){
+            t=v.$type;
+            v=v.$value;
+        }
         var m: metakeys.Label = <any>this.resolvedType(t);
 
         const label2 = m.label;
@@ -708,7 +745,15 @@ export class TypeService implements IExecutor{
         var val = target[name];
         if (val) {
             if (typeof val == "function") {
-                return (<Function>val).apply(target);
+                val= (<Function>val).apply(target);
+            }
+        }
+        if (prop) {
+            var rt = this.resolvedType(prop);
+            if (val === null || val == undefined) {
+                if ((<metakeys.NilInstance>rt).NilInstance) {
+                    return (<metakeys.NilInstance>rt).NilInstance;
+                }
             }
         }
         return val;
@@ -741,7 +786,15 @@ export class TypeService implements IExecutor{
         var val = target[prop.id];
         if (val) {
             if (typeof val == "function") {
-                return (<Function>val).apply(target);
+                val= (<Function>val).apply(target);
+            }
+        }
+        if (prop) {
+            var rt = this.resolvedType(prop);
+            if (val === null || val == undefined) {
+                if ((<metakeys.NilInstance>rt).NilInstance) {
+                    return (<metakeys.NilInstance>rt).NilInstance;
+                }
             }
         }
         return val;
@@ -759,7 +812,15 @@ export class TypeService implements IExecutor{
     setValue(t: types.Type, target: any, name: string, v: any, bnd: types.IGraphPoint) {
         var val = target[name];
         var prop = this.property(t, name);
-        if (prop) {
+        if (prop){
+        var rt=this.resolvedType(prop);
+        //if (val===null||val==undefined){
+            if ((<metakeys.NilInstance>rt).NilInstance){
+                if ( (<metakeys.NilInstance>rt).NilInstance==val){
+                    val=null;
+                }
+            }
+        //}
             if (prop.readonly) {
                 return;
             }

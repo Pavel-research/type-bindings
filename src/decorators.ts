@@ -250,6 +250,7 @@ function update(t:LayoutPart,d:tps.metakeys.LabelDecorator,b:Binding):LayoutElem
 }
 export function calculateLayout(b: tps.Binding,decs?:tps.metakeys.LabelDecorator): LayoutElement {
     var t = b.type();
+
     var icon = (<tps.metakeys.Icon>t).icon;
     var label = (<tps.metakeys.Label>t).label;
     var html = (<tps.metakeys.Label>t).htmlLabel;
@@ -261,6 +262,13 @@ export function calculateLayout(b: tps.Binding,decs?:tps.metakeys.LabelDecorator
     if (decs){
         if (!decorators){
             decorators={}
+        }
+        else{
+            var vd={};
+            Object.keys(decorators).forEach(x=>{
+                vd[x]=decorators[x];
+            })
+            decorators=vd;
         }
         decorators["main"]=decs;
     }

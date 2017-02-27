@@ -19,6 +19,7 @@ export interface Type {
 
     constructors?: (Operation|string)[]
     updaters?: (Operation|string)[]
+    details?: (Operation|string)[]
     listers?: (Operation|string)[]
     destructors?: (Operation|string)[]
     memberCollections?:(Operation|string)[]
@@ -120,6 +121,14 @@ export const TYPE_DATE: Type = <Type&metakeys.Label>{
 }
 export const TYPE_PASSWORD: Type = {id: "password", type: TYPE_STRING}
 export const TYPE_DATETIME: Type = {id: "datetime", type: TYPE_DATE}
+export const TYPE_DATEONLY: Type = {id: "date-only", type: TYPE_DATE}
+export const TYPE_URL: StringType = {id: "url", type: "string"}
+export const TYPE_HTMLURL: StringType = {id: "htmlUrl", type: "url"}
+export const TYPE_LINK: StringType = {id: "link", type: "url"}
+export const TYPE_HTML: StringType = {id: "html", type: "text"}
+
+export const TYPE_IMAGEURL: StringType = {id: "imageUrl", type: "url"}
+
 export const TYPE_BOOLEAN: Type = {id: "boolean", type: TYPE_SCALAR}
 export const TYPE_NULL: Type = {id: "null", type: TYPE_SCALAR}
 export const TYPE_OBJECT: ObjectType = {id: "object"}
@@ -129,12 +138,20 @@ export const TYPE_RELATION: Type = {id: "relation", type: TYPE_ARRAY}
 export const TYPE_VIEW: Type = {id: "view", type: TYPE_ARRAY}
 export const TYPE_TEXT: StringType = {id: "text", type: "string", multiline: true}
 export const TYPE_MARKDOWN: Type&metakeys.needsOwnGroup = {id: "markdown", type: TYPE_TEXT, needsOwnGroup: true}
+export const TYPE_CODE: Type&metakeys.needsOwnGroup = {id: "code", type: TYPE_TEXT, needsOwnGroup: true}
+
 service.register(TYPE_UNION);
 service.register(TYPE_ANY);
+service.register(TYPE_LINK);
 service.register(TYPE_VIEW);
 service.register(TYPE_SCALAR);
 service.register(TYPE_DATE);
+service.register(TYPE_DATEONLY);
 service.register(TYPE_STRING);
+service.register(TYPE_URL)
+service.register(TYPE_HTMLURL)
+service.register(TYPE_IMAGEURL)
+
 service.register(TYPE_NUMBER);
 service.register(TYPE_INTEGER);
 service.register(TYPE_BOOLEAN);
@@ -146,7 +163,10 @@ service.register(TYPE_ARRAY);
 service.register(TYPE_RELATION);
 service.register(TYPE_TEXT);
 service.register(TYPE_MARKDOWN);
+service.register(TYPE_CODE);
+
 service.register(TYPE_MAP);
+service.register(TYPE_HTML);
 (<any>window).moments=moments;
 (<metakeys.HasComparator>TYPE_DATE).compareFunction=(x0:any,x1:any)=>{
     if (x0&&x1){
@@ -178,6 +198,12 @@ export function copy(t: TypeReference) {
     Object.keys(ttt).forEach(x => result[x] = ttt[x]);
     delete (<any>result).$resolved;
     return result;
+}
+
+export class HasType {
+    constructor(public readonly $type: Type,public readonly $value: any){
+
+    }
 }
 
 export function array(t: Type): ArrayType {
@@ -285,6 +311,7 @@ export interface IAccessControl {
 export interface CollectionBinding {
     add(v: any);
     remove(v: any);
+    setGroupByProperty(prop:string)
     replace(oldValue: any, newValue: any);
     componentType(): Type;
     workingCopy(): any[]
@@ -297,6 +324,14 @@ export interface CollectionBinding {
     isSelected(v): boolean
     refresh();
     setSelectionIndex(n: number)
+    groupBy(): boolean;
+    tree(): boolean;
+    children(x:any):any[]
+    expanded(x:any):boolean
+    expand(x:any)
+    collapse(x:any)
+
+    levels():number[]
 }
 
 export abstract class ListenableValue<T> {
@@ -344,6 +379,9 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
     }
 
     protected isEditable() {
+        if ((<Binding><any>this.binding).readonly){
+            return false;
+        }
         if (this.binding.parent()) {
             if (!this.binding.parent().accessControl().canEditChildren()) {
                 return false;
@@ -357,6 +395,9 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
             if (!this.binding.parent().accessControl().canEditChildren()) {
                 return false;
             }
+        }
+        if (this.binding.immutable){
+            return false;
         }
         return true;
     }
@@ -390,6 +431,7 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
 export abstract class AbstractBinding extends ListenableValue<any> implements IBinding {
 
     _parent: Binding;
+    immutable: boolean
 
     lookupVar(v: string) {
         return null;
@@ -480,6 +522,7 @@ export abstract class AbstractBinding extends ListenableValue<any> implements IB
     }
 
     type() {
+
         if (this._type) {
             return (<Type|any>service.resolvedType(this._type));
         }
@@ -667,7 +710,12 @@ export class Binding extends AbstractBinding implements IBinding {
     autoCommit() {
         return this._autoCommit;
     }
-
+   type(){
+       if (this.value instanceof HasType){
+           return (<Type|any>service.resolvedType(this.value.$type));
+       }
+       return super.type();
+   }
     addVar(name: string, value: any) {
         this.variables[name] = value;
     }
@@ -702,6 +750,9 @@ export class Binding extends AbstractBinding implements IBinding {
                 this.inGet = false;
             }
             return mm;
+        }
+        if (this.value instanceof HasType){
+            return this.value.$value;
         }
         return this.value;
     }
@@ -843,7 +894,7 @@ export class Binding extends AbstractBinding implements IBinding {
     }
 
 
-    private refreshChildren() {
+    refreshChildren() {
         Object.keys(this._bnds).forEach(k => {
 
             this._bnds[k].refresh();
@@ -992,7 +1043,14 @@ export class Binding extends AbstractBinding implements IBinding {
             b = new storage.BasicPagedCollection(name, <metakeys.WebCollection>service.resolvedType(p.type), this);
         }
         else {
-            b = new Binding(name);
+            if (p&&p.type.remote){
+                b=new storage.RemoteValueBinding(name);
+                b.context=this;
+
+            }
+            else {
+                b = new Binding(name);
+            }
             if (name.charAt(0) == '@') {
                 b.value = this.lookupVar(name.substring(1));
                 return b;
@@ -1161,7 +1219,18 @@ export class ComputedBinding extends Binding implements IValueListener {
     }
 }
 function canCompute(b:Binding,x:Parameter,allowVar=true){
-
+    if (b.type().basicPaging){
+        var v=b.type().basicPaging;
+        if (v.offset==x.id){
+            return true;
+        }
+        if (v.page==x.id){
+            return true;
+        }
+        if (v.limit==x.id){
+            return true;
+        }
+    }
     if ((<metakeys.Reference>x).reference){
         var ref:string|boolean=(<metakeys.Reference>x).reference
         if (typeof ref=="string") {
@@ -1412,6 +1481,7 @@ export class OperationBinding extends Parameterizeable {
 export interface ConversionRule {
     from: string
     to: string
+    code?:(v)=>any
     selfRule?: string
     autoConvertKnownProperties?: boolean
     asssertions?: {[name: string]: string}
@@ -1422,6 +1492,8 @@ export interface Module {
     }
 }
 import cu=require("./collectionUtils")
+
+
 export class ViewBinding extends Binding {
     protected _paramBindings: Binding[];
     protected _allParamBindings: Binding[];
@@ -1431,6 +1503,7 @@ export class ViewBinding extends Binding {
     }
 
     parameterModifyCount = 0;
+
 
     processOrderingChange(){
         var ord=null;
@@ -1548,6 +1621,14 @@ export class ViewBinding extends Binding {
         var cp = this.parameterModifyCount;
         if (this._parametersOwnerBinding.getLastEvent()) {
             var pdnd=this._parametersOwnerBinding.getLastEvent().source;
+            if (pdnd.id()=="$groupBy"){
+                var val=pdnd.get();
+                if (val=="$none"){
+                    val="";
+                }
+                this.collectionBinding().setGroupByProperty(val);
+                return;
+            }
             var tp = pdnd.type();
             var ordering=(<metakeys.Ordering>tp).ordering;
             if (ordering){
@@ -1607,6 +1688,46 @@ export class ViewBinding extends Binding {
             type: "object",
             properties: {}
         }
+        var gb=(<metakeys.GroupBy>this.type()).groupBy;
+        if (gb&&gb.allowUserConfiguration){
+            var values=[];
+            if (gb.allowedGropings){
+                values=gb.allowedGropings;
+            }
+            else{
+                var vp=service.visibleProperties(service.componentType(this.type()));
+                vp=vp.filter(x=>{
+                    var vl=service.isMultiSelect(x.type)||service.isFiniteSetOfInstances(x.type);
+                    return vl;
+                })
+                values=vp.map(x=>x.id);
+            }
+            var ed=[];
+            values.forEach(x=>{
+                var p=service.property(service.componentType(this.type()),x);
+                if (p){
+                    ed.push(service.caption(p));
+                }
+            })
+            values.push("$none");
+            ed.push("None")
+            ps.push(<any>{
+                id:"$groupBy",
+                location:"other",
+                displayName: "Group By",
+                type: "string",
+                enum: values,
+                enumDescriptions: ed,
+                default:gb.property,
+                required:false
+            });
+            var pl=(<metakeys.ParametersLayout>this.type()).parametersLayout;
+            if (pl){
+                if (pl.initiallyVisible){
+                    pl.initiallyVisible.push("$groupBy");
+                }
+            }
+        }
         var bnd=this;
         this._parametersOwnerBinding = new Binding("");
         this._parametersOwnerBinding._type = parameterType;
@@ -1630,15 +1751,16 @@ export class ViewBinding extends Binding {
                 ps.forEach(x => {
                     if (canCompute(this,x)){
                         var b1=<IBinding>computeParameterBinding(this,x);
-
-                        b1.addListener({
-                            valueChanged(){
-                                b._parametersOwnerBinding.binding(x.id).set(b1.get());
-                                //b.changed();
-                            }
-                        })
-                        b._parametersOwnerBinding.binding(x.id).set(b1.get());
-                        this._allParamBindings.push(<Binding>b._parametersOwnerBinding.binding(x.id));
+                        if (b1) {
+                            b1.addListener({
+                                valueChanged(){
+                                    b._parametersOwnerBinding.binding(x.id).set(b1.get());
+                                    //b.changed();
+                                }
+                            })
+                            b._parametersOwnerBinding.binding(x.id).set(b1.get());
+                            this._allParamBindings.push(<Binding>b._parametersOwnerBinding.binding(x.id));
+                        }
                     }
                     else {
                         var bnd = <Binding>this._parametersOwnerBinding.binding(x.id);
@@ -1649,7 +1771,7 @@ export class ViewBinding extends Binding {
                 })
             }
         }
-        this._parametersOwnerBinding.addListener({
+        this._parametersOwnerBinding.addPrecomitListener({//
             valueChanged(){
                 var ev=b._parametersOwnerBinding.getLastEvent();
                 if (b.parameterBindings().indexOf(<Binding>ev.source)==-1){
@@ -1775,6 +1897,9 @@ export function unidirectional(b1: IBinding, b2: Binding) {
             b2.collectionBinding().setSelection(v);
         }
     })
+    var sb=b2.collectionBinding().selectionBinding();
+    (<AbstractBinding>sb).immutable=true;
+    //b2.readonly=true;
 }
 class CC {
 
@@ -1823,6 +1948,29 @@ class CC {
     }
 }
 
+
+
 export function bidirectional(b1: IBinding, b2: Binding, transformer?: (x: any) => any, btransformer?: (x: any) => any) {
     new CC(b1, b2, transformer, btransformer);
 }
+service.addRule({
+    from: "scalar",
+    to:"date-only",
+    code:(v)=>{
+        return moments(v).format("YYYY-MM-DD")
+    }
+})
+service.addRule({
+    from: "datetime",
+    to:"date-only",
+    code:(v)=>{
+        return moments(v).format("YYYY-MM-DD")
+    }
+})
+service.addRule({
+    from: "scalar",
+    to:"date",
+    code:(v)=>{
+        return moments(v).toISOString();
+    }
+})//

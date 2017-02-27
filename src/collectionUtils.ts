@@ -1,19 +1,22 @@
 import tps=require("./types")
+import {HasType} from "./types";
 
 
 export function sort(vl:any[],t:tps.Type, property:string,asc:boolean):any[]{
-    var pr=tps.service.property(t,property);
-    if (pr) {
-        var rst = tps.service.resolvedType(pr.type);
-        var res = vl.sort((x1, x2) => {
-            var vl1 = tps.service.getValueWithProp(t, x1, pr);
-            var vl2 = tps.service.getValueWithProp(t, x2, pr);
-            return tps.service.compare(vl1, vl2,rst);
-        })
-        if (!asc) {
-            res = res.reverse();
+    if (vl) {
+        var pr = tps.service.property(t, property);
+        if (pr) {
+            var rst = tps.service.resolvedType(pr.type);
+            var res = vl.sort((x1, x2) => {
+                var vl1 = tps.service.getValueWithProp(t, x1, pr);
+                var vl2 = tps.service.getValueWithProp(t, x2, pr);
+                return tps.service.compare(vl1, vl2, rst);
+            })
+            if (!asc) {
+                res = res.reverse();
+            }
+            return res;
         }
-        return res;
     }
     return vl;
 }
@@ -144,10 +147,68 @@ export function isFiltered(x:any,filterVal:any,t:tps.Type,d:tps.metakeys.FilterD
 }
 
 export function filter(vl:any[],filterVal:any,t:tps.Type,d:tps.metakeys.FilterDescription):any[]{
+    if (!d){
+        return vl;
+    }
     if (d.property){
         return vl.filter(x=>isFiltered(x,filterVal,t,d))
     }
     else{
         return vl;
+    }
+}
+function groupVal(vl:any, property: string, t:tps.Type):any{
+    return tps.service.getValue(t,vl,property,null);
+}
+const None={
+    name:"None"
+}
+export class GroupNode extends HasType{
+
+
+    constructor(private value: any,public readonly children:any[],private property:string,private type:tps.Type){
+        super(type,value)
+    }
+}
+export function groupBy(vl:any[], property: string, t:tps.Type){
+    var values:Map<any,any[]>=new Map();
+    if (vl){
+        vl.forEach(x=>{
+           var gv=groupVal(x,property,t);
+           if(!gv){
+               gv=None;
+           }
+           var vals:any[]=[gv];
+           if (Array.isArray(gv)){
+               if (vals.length==0){
+                   vals=[None];//
+               }
+               vals=gv
+           }
+           vals.forEach(v=>{
+               v=JSON.stringify(v);
+               if (values.has(v)){
+                   values.get(v).push(x);
+               }
+               else{
+                   var rs=[x];
+                   values.set(v,rs);
+               }
+           })
+
+        });
+        var result: GroupNode[]=[];
+        var type=tps.service.property(t,property);
+        var tp=type?type.type:tps.TYPE_ANY;
+        if (tps.service.isArray(tp)){
+            tp=tps.service.componentType(tp);
+        }
+        values.forEach((k,v)=>{
+            result.push(new GroupNode(JSON.parse(v)  ,k,property,tp));
+        })
+        return result;
+    }
+    else{
+        return [];
     }
 }

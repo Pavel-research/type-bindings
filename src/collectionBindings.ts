@@ -8,9 +8,10 @@ import Binding=types.Binding;
 import Type=types.Type;
 import CollectionBinding=types.CollectionBinding;
 import pluralize=require("pluralize")
-
+import cu=require("./collectionUtils")
 import deepCopy=utils.deepCopy;
-import {DefaultAccessControl} from "./types";
+import {DefaultAccessControl, HasType, ViewBinding} from "./types";
+import {GroupNode} from "./collectionUtils";
 
 export interface ISelectionListener {
     selectionChanged(newSelection: any[])
@@ -35,7 +36,9 @@ export class SelectionAccessControl extends DefaultAccessControl<types.Binding>{
         }
         return true;
     }
-
+    canEditSelf(){
+        return !this.selection.immutable;
+    }
     canEditChildren(){
         return this.isEditable();
     }
@@ -46,6 +49,97 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
 
     constructor(protected pb: Binding) {
         super();
+        if ((<metakeys.GroupBy>pb.type()).groupBy){
+            var gb=(<metakeys.GroupBy>pb.type()).groupBy;
+            this._groupByProp=gb.property;//
+        }
+    }
+    _tree: boolean
+    _treeProperty: string;
+    _groupByProp: string
+    groupBy(): boolean{
+        return this._groupByProp!=null;
+    }
+    setGroupByProperty(property: string){
+        this._groupByProp=property;
+        this.change();
+    }
+
+    postransform(value:any[]):any{
+        if (this._groupByProp){
+            return cu.groupBy(value,this._groupByProp,this.componentType());
+        }
+        return value;
+    }
+
+    tree(): boolean{
+        return this._tree;
+    }
+    children(x:any):any[]{
+        if (this.groupBy()){
+            if (x instanceof GroupNode){
+                return x.children;
+            }
+        }
+        if (this._tree){
+            var vl=types.service.getValue(this.componentType(),x,this._treeProperty,null);
+            if (vl){
+                if (!Array.isArray(vl)){
+                    return [vl];
+                }
+                return vl;
+            }
+        }
+        return [];
+    }
+    protected expandValues(ac):any[]{
+        if (ac) {
+            if (this.groupBy() || this.tree()) {
+                var rs = [];
+                ac.forEach(x => {
+                    rs.push(x);
+                    if (this.expanded(x)) {
+                        rs = rs.concat(this.expandValues(this.children(x)));
+                    }
+                });
+                return rs;
+            }
+        }else {return  []}
+        return ac;
+    }
+
+    levels(ac=this.workingCopy(),num:number=0):any[]{
+        if (this.groupBy()||this.tree()){
+            var rs=[];
+            ac.forEach(x=>{
+                rs.push(num);
+                if (this.expanded(x)){
+                    rs=rs.concat(this.levels(this.children(x),num+1));
+                }
+            });
+            return rs;
+        }
+        return null;
+    }
+
+    expansionMap:WeakMap<any,any>
+    expanded(x:any):boolean{
+        if (!this.expansionMap){
+            return false;
+        }
+        return this.expansionMap.has(x);
+    }
+    expand(m:any){
+        if(!this.expansionMap){
+            this.expansionMap=new WeakMap();
+        }
+        this.expansionMap.set(m,true);
+
+        this.change();
+    }
+    collapse(m:any){
+        this.expansionMap.delete(m);
+        this.change();
     }
 
     abstract componentType(): Type
@@ -224,14 +318,31 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
         if (plain) {
             return plain;
         }
+        if (v instanceof HasType){
+            v=v.$value;
+        }
         //check for value with same key
         var keyProp = service.keyProp(this.componentType());
         if (v) {
+            var has=false;
+            r.forEach(x=>{
+                if(x instanceof HasType){
+                    if (x.$value==v){
+                        has= true;
+                    }
+                }
+            })
+            if (has) {
+                return has;
+            }
             if (keyProp) {
                 var vl = v[keyProp];
                 if (vl) {
                     plain = plain || (r.filter(x => x[keyProp] === vl).length != 0);
                 }
+            }
+            else{
+
             }
         }
         return plain;
@@ -246,11 +357,41 @@ export abstract class AbstractCollectionBinding extends ListenableValue<any[]> {
 export class ArrayCollectionBinding extends AbstractCollectionBinding implements CollectionBinding {
 
     _value: any[];
+    _tvalue:any[]
+    _evalue:any[]
+    _levels:number[];
+
     _componentType: any
 
+    expand(v:any){
+        this._evalue=null;
+        this._levels=null;
+        super.expand(v);
+    }
+    collapse(v:any){
+        this._evalue=null;
+        this._levels=null;
+        super.collapse(v);
+    }
 
     postApplySelection(){
         this.change();
+    }
+    levels(ac:any[]=this.workingCopy(),num=0):number[]{
+        if (num==0){
+            if(this._levels){
+                return this._levels;
+            }
+            this._levels=super.levels(ac,num)
+            return this._levels;
+        }
+        return super.levels(ac,num)
+    }
+    setGroupByProperty(property: string){
+        this._tvalue=null;
+        this._evalue=null;
+        this._levels=null;
+        super.setGroupByProperty(property);
     }
 
     setSelectionIndex(n:number){
@@ -269,14 +410,29 @@ export class ArrayCollectionBinding extends AbstractCollectionBinding implements
         else if (!Array.isArray(this._value)) {
             this._value = [];
         }
+        if (this.pb instanceof ViewBinding){
+            if (this._evalue){
+                return this._evalue;
+            }
+            if (this._tvalue){
+                this._evalue=this.expandValues(this._tvalue);
+                return this._evalue;
+            }
+            this._tvalue= (this.postransform(this._value));
+            this._evalue=this.expandValues(this._tvalue);
+            return this._evalue;
+        }
         return this._value;
     }
+
+
 
     originalValue() {
         return this.value();
     }
 
     workingCopy() {
+
         return this.value();
     }
 
@@ -285,6 +441,9 @@ export class ArrayCollectionBinding extends AbstractCollectionBinding implements
     }
     refresh() {
         this._value=null;
+        this._tvalue=null;
+        this._evalue=null;
+        this._levels=null;
         if (this.applyingSelection){
             return;
         }

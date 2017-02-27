@@ -33,6 +33,9 @@ export interface Ordering{
 export interface Filter{
     filter?: FilterDescription
 }
+export interface NilInstance{
+    NilInstance?: any
+}
 export interface FilterDescription{
     property?:string
     valueMappings?:{ [name:string]:string}
@@ -40,6 +43,22 @@ export interface FilterDescription{
     op?: string
 
 }
+export interface ParametersLayout{
+
+    parametersLayout?:{
+        initiallyVisible?: string[]
+        allowConfiguration?: boolean
+        contributeToContextMenu?: boolean
+    }
+}
+export interface GroupBy{
+    groupBy?: {
+        property?: string
+        allowUserConfiguration?: boolean
+        allowedGropings?: string[]
+    }
+}
+
 export interface HasComparator{
     compareFunction?(v0:any,v1:any):number
 }
