@@ -1137,7 +1137,9 @@ export class TypeService implements IExecutor{
             mm = optimizeUt(ut)
             this.typeMap.set(t, mm);
         }
-
+        if (!mm.displayName){
+            mm.displayName="";
+        }
         //now we should collapse super types;
         return <types.Type>mm;
     }

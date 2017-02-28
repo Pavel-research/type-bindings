@@ -21,6 +21,9 @@ export interface Request {
         password: string,
     }
 }
+const isBrowser = typeof window !== 'undefined';
+
+
 
 
 class BasicThenable implements types.Thenable {
@@ -825,32 +828,37 @@ types.service.registerExecutor("rest", {
 })
 
 declare var $:any
-
-var JSONP = function (global) {
-    // (C) WebReflection Essential - Mit Style
-    // cleaned up by Brett Zamir for JSLint and avoiding additional globals and need for conventional [?&]callback= in URL)
-    // 'use strict'; // Added above
-    var id = 0,
-        ns = 'MediaWikiJS',
-        prefix = '__JSONP__',
-        document = global.document,
-        documentElement = document.documentElement;
-    return function (uri, callback) {
-        var src = prefix + id++,
-            script = document.createElement('script'),
-            JSONPResponse = function () {
-                try { delete global[ns+"_"+src]; } catch(e) { global[ns+"_"+src] = null; }
-                documentElement.removeChild(script);
-                callback.apply(this, arguments);
-            };
-        window[ns+"_"+src]=JSONPResponse;
+if (isBrowser) {
+    var JSONP = function (global) {
+        // (C) WebReflection Essential - Mit Style
+        // cleaned up by Brett Zamir for JSLint and avoiding additional globals and need for conventional [?&]callback= in URL)
+        // 'use strict'; // Added above
+        var id = 0,
+            ns = 'MediaWikiJS',
+            prefix = '__JSONP__',
+            document = global.document,
+            documentElement = document.documentElement;
+        return function (uri, callback) {
+            var src = prefix + id++,
+                script = document.createElement('script'),
+                JSONPResponse = function () {
+                    try {
+                        delete global[ns + "_" + src];
+                    } catch (e) {
+                        global[ns + "_" + src] = null;
+                    }
+                    documentElement.removeChild(script);
+                    callback.apply(this, arguments);
+                };
+            window[ns + "_" + src] = JSONPResponse;
             //global[ns][src] = JSONPResponse;
-        (<any>documentElement.insertBefore(
-            script,
-            documentElement.lastChild
-        )).src = uri + (uri.indexOf('?') > -1 ? '&' : '?') + 'callback=' + ns + '_' + src;
-    };
-}(window);
+            (<any>documentElement.insertBefore(
+                script,
+                documentElement.lastChild
+            )).src = uri + (uri.indexOf('?') > -1 ? '&' : '?') + 'callback=' + ns + '_' + src;
+        };
+    }(window);
+}
 
 var cache:any={};
 export class RemoteValueBinding extends Binding{

@@ -167,7 +167,11 @@ service.register(TYPE_CODE);
 
 service.register(TYPE_MAP);
 service.register(TYPE_HTML);
-(<any>window).moments=moments;
+const isBrowser = typeof window !== 'undefined';
+
+if (isBrowser) {
+    (<any>window).moments = moments;
+}
 (<metakeys.HasComparator>TYPE_DATE).compareFunction=(x0:any,x1:any)=>{
     if (x0&&x1){
         var d0=new Date(x0);

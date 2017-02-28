@@ -36,6 +36,7 @@ export class CompositeValidator implements InstanceValidator {
         }
     }
 }
+
 function getOwningCollection(b: IGraphPoint): types.CollectionBinding {
     var hu: metakeys.OwningCollection = b.type();
     var oc = (<any>b.type()).owningCollection;

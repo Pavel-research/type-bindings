@@ -11,8 +11,7 @@ declare var $: any
 
 export function deepCopy(obj: any) {
     if (typeof obj=="object") {
-        var newObj = $.extend(true, {}, obj);
-        return newObj;
+        return JSON.parse(JSON.stringify(obj));
     }
     return obj;
 }
