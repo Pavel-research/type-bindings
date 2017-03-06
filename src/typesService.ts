@@ -150,6 +150,7 @@ export interface IPropertyGroup {
     caption: string,
     properties: types.Property[]
 }
+export import interpolate=decorators.interpolate
 let deps = function (p: IPropertyGroup, x) {
     var dependent: types.Property[] = [];
     p.properties.forEach(y => {
@@ -982,8 +983,19 @@ export class TypeService implements IExecutor{
 
     property(t: types.Type, name: string) {
         var rs = {};
-        var r = this.propertyMap(this.resolvedType(t), rs);
-        return rs[name];
+        var rt=this.resolvedType(t);
+        var r = this.propertyMap(rt, rs);
+        var val= rs[name];
+        if (val){
+            return val;
+        }
+        if ((<any>rt).aliases){
+            var ll=(<any>rt).aliases;
+            if (ll[name]){
+                var pn=ll[name];
+                return rs[pn];
+            }
+        }
     }
 
     private propertyMap(t: types.Type, pn: {[p: string]: types.Property}) {
@@ -1236,23 +1248,28 @@ export class TypeService implements IExecutor{
     newInstance(t: types.Type): any {
         if (this.isObject(t)) {
             var val = {};
-            this.allProperties(t).forEach(x => {
-                var rr=this.resolvedType(x.type);
-                if (rr.default) {
-                    this.setValue(t, val, x.id, rr.default, null);
-                }
-                if (x.required) {
-                    if (this.isArray(x.type)) {
-                        this.setValue(t, val, x.id, [], null);
+            if (t.default){
+                val=utils.deepCopy(t.default);
+            }
+            else {
+                this.allProperties(t).forEach(x => {
+                    var rr = this.resolvedType(x.type);
+                    if (rr.default) {
+                        this.setValue(t, val, x.id, rr.default, null);
                     }
-                    if (this.isMap(x.type)) {
-                        this.setValue(t, val, x.id, {}, null);
+                    if (x.required) {
+                        if (this.isArray(x.type)) {
+                            this.setValue(t, val, x.id, [], null);
+                        }
+                        if (this.isMap(x.type)) {
+                            this.setValue(t, val, x.id, {}, null);
+                        }
+                        if (this.isBoolean(x.type)) {
+                            this.setValue(t, val, x.id, false, null);
+                        }
                     }
-                    if (this.isBoolean(x.type)) {
-                        this.setValue(t, val, x.id, false, null);
-                    }
-                }
-            })
+                })
+            }
             return val;
         }
         if (this.isArray(t)) {

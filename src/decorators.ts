@@ -6,6 +6,7 @@ export interface LayoutPart {
     image?: string
     text?: string
     link?: string
+    action? : string
     align?: "left"|"right"
     type: "part"
     html?: boolean
@@ -44,6 +45,9 @@ export function calculateLabel(label2: string|((v: any) => string), v: any, t: t
                 var ps = tps.service.property(t, label2);
                 if (ps) {
                     return tps.service.label(rs, ps.type);
+                }
+                if (!rs){
+                    return label2;
                 }
                 return rs;
             }
@@ -86,10 +90,10 @@ export function canJoin(t1: LayoutPart, t2: LayoutPart) {
     if (t1.image && t2.image) {
         return false;
     }
-    if (t1.class||t1.background||t1.color||t1.align){
+    if (t1.class||t1.background||t1.color||t1.align||t1.action){
         return false;
     }
-    if (t2.class||t2.background||t2.color||t2.align){
+    if (t2.class||t2.background||t2.color||t2.align||t2.action){
         return false;
     }
     return true;
@@ -212,6 +216,9 @@ function update(t:LayoutPart,d:tps.metakeys.LabelDecorator,b:Binding):LayoutElem
     }
     if (d.align){
         t.align=d.align;
+    }
+    if (d.action){
+        t.action=d.action;
     }
     if (d.itemTransform){
         var fld=d.details;

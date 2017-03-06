@@ -71,7 +71,7 @@ export function resolver(v:string,val:any,t:types.Type):TypedValue{
     }
     return null;
 }
-export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint): any {
+export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint,append:boolean=true): any {
     try {
         if (typeof c == "string") {
             var vv = c.charAt(0);
@@ -83,12 +83,17 @@ export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint): any
                 var mm = <types.Binding>v;
                 return mm.lookupVar(c.substring(1));
             }
-            var func = new Function("$value", "$","context", "return " + c);
-            const contextProxy=new Proxy(v,{
-                get: (target:any, property:string, receiver)=> {
-                    return (<types.Binding>v).lookupVar(property);
-                },
-            })
+            try {
+                var func = new Function("$value", "$", "context", append ? "return " + c : c);
+                var contextProxy = new Proxy(v, {
+                    get: (target: any, property: string, receiver) => {
+                        return (<types.Binding>v).lookupVar(property);
+                    },
+                })
+            } catch (e){
+                console.log(e);
+                return e;
+            }
             return func.apply(proxy(v.get(), v.type(), v), [v, v.root().get(),contextProxy]);
         }
         else {
@@ -104,6 +109,7 @@ export function calcExpression(c: metakeys.Condition, v: types.IGraphPoint): any
         return e;
     }
 }
+
 export function calcCondition(c: metakeys.Condition, v: types.IGraphPoint): boolean {
     var val=calcExpression(c,v);
     if (val){

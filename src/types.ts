@@ -102,6 +102,8 @@ export const TYPE_STRING: StringType = {id: "string", type: TYPE_SCALAR}
 export const TYPE_NUMBER: Type = {id: "number", type: TYPE_SCALAR}
 export const TYPE_INTEGER: Type = {id: "integer", type: TYPE_NUMBER}
 export const TYPE_OPERATION: Type = {id: "operation", type: TYPE_ANY}
+export const TYPE_ACTION: Type = {id: "action", type: TYPE_OPERATION}
+
 export const TYPE_DATE: Type = <Type&metakeys.Label>{
     id: "date", type: TYPE_SCALAR, label(v){
         var m = moments(v);
@@ -151,7 +153,8 @@ service.register(TYPE_STRING);
 service.register(TYPE_URL)
 service.register(TYPE_HTMLURL)
 service.register(TYPE_IMAGEURL)
-
+service.register(TYPE_OPERATION)
+service.register(TYPE_ACTION)
 service.register(TYPE_NUMBER);
 service.register(TYPE_INTEGER);
 service.register(TYPE_BOOLEAN);
@@ -401,6 +404,9 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
             }
         }
         if (this.binding.immutable){
+            return false;
+        }
+        if (this.binding.type().immutable){
             return false;
         }
         return true;

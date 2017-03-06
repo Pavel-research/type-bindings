@@ -90,6 +90,8 @@ export interface LabelDecorator{
     details?: string
     status?: string
     image?: string
+    action?: string
+
     replace?: boolean
     html?: boolean
     class?: string
