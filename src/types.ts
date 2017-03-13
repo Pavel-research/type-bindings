@@ -142,34 +142,6 @@ export const TYPE_TEXT: StringType = {id: "text", type: "string", multiline: tru
 export const TYPE_MARKDOWN: Type&metakeys.needsOwnGroup = {id: "markdown", type: TYPE_TEXT, needsOwnGroup: true}
 export const TYPE_CODE: Type&metakeys.needsOwnGroup = {id: "code", type: TYPE_TEXT, needsOwnGroup: true}
 
-service.register(TYPE_UNION);
-service.register(TYPE_ANY);
-service.register(TYPE_LINK);
-service.register(TYPE_VIEW);
-service.register(TYPE_SCALAR);
-service.register(TYPE_DATE);
-service.register(TYPE_DATEONLY);
-service.register(TYPE_STRING);
-service.register(TYPE_URL)
-service.register(TYPE_HTMLURL)
-service.register(TYPE_IMAGEURL)
-service.register(TYPE_OPERATION)
-service.register(TYPE_ACTION)
-service.register(TYPE_NUMBER);
-service.register(TYPE_INTEGER);
-service.register(TYPE_BOOLEAN);
-service.register(TYPE_NULL);
-service.register(TYPE_DATETIME);
-service.register(TYPE_PASSWORD);
-service.register(TYPE_OBJECT);
-service.register(TYPE_ARRAY);
-service.register(TYPE_RELATION);
-service.register(TYPE_TEXT);
-service.register(TYPE_MARKDOWN);
-service.register(TYPE_CODE);
-
-service.register(TYPE_MAP);
-service.register(TYPE_HTML);
 const isBrowser = typeof window !== 'undefined';
 
 if (isBrowser) {
@@ -242,7 +214,6 @@ export interface IValueListener {
     valueChanged(e: ChangeEvent);
 }
 
-
 export enum Severity{
     OK, WARNING, ERROR
 }
@@ -277,7 +248,7 @@ export interface IBinding extends IGraphPoint,IContext {
     parent(): IBinding
     root(): IBinding
     collectionBinding(): CollectionBinding
-    addListener(v: IValueListener)
+    addListener(v: IValueListener| ((v:any)=>void))
     removeListener(v: IValueListener)
     add(v: any): any
     remove(v: any): any
@@ -351,8 +322,17 @@ export abstract class ListenableValue<T> {
 
     abstract get(): T
 
-    addListener(v: IValueListener) {
-        this.listeners.push(v);
+    addListener(v: IValueListener| ((v:any)=>void)) {
+        if (typeof v=="function"){
+            this.listeners.push({
+                valueChanged(e){
+                    v(e)
+                }
+            })
+        }
+        else {
+            this.listeners.push(v);
+        }
     }
 
     removeListener(v: IValueListener) {
@@ -1984,3 +1964,40 @@ service.addRule({
         return moments(v).toISOString();
     }
 })//
+
+export function reinit(v?:{ [name:string]:Type}){
+    service.clean();
+    service.register(TYPE_UNION);
+    service.register(TYPE_ANY);
+    service.register(TYPE_LINK);
+    service.register(TYPE_VIEW);
+    service.register(TYPE_SCALAR);
+    service.register(TYPE_DATE);
+    service.register(TYPE_DATEONLY);
+    service.register(TYPE_STRING);
+    service.register(TYPE_URL)
+    service.register(TYPE_HTMLURL)
+    service.register(TYPE_IMAGEURL)
+    service.register(TYPE_OPERATION)
+    service.register(TYPE_ACTION)
+    service.register(TYPE_NUMBER);
+    service.register(TYPE_INTEGER);
+    service.register(TYPE_BOOLEAN);
+    service.register(TYPE_NULL);
+    service.register(TYPE_DATETIME);
+    service.register(TYPE_PASSWORD);
+    service.register(TYPE_OBJECT);
+    service.register(TYPE_ARRAY);
+    service.register(TYPE_RELATION);
+    service.register(TYPE_TEXT);
+    service.register(TYPE_MARKDOWN);
+    service.register(TYPE_CODE);
+    service.register(TYPE_MAP);
+    service.register(TYPE_HTML);
+    if (v){
+        Object.keys(v).forEach(x=>{
+            service.register(v[x]);
+        })
+    }
+}
+reinit();

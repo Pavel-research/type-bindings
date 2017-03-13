@@ -315,6 +315,12 @@ export class TypeService implements IExecutor{
 
     private executors:{[name:string]:IExecutor}={};
 
+    clean(){
+        this.typeByName=new Map();
+        this.typeMap=new WeakMap();
+        this.instanceMap=new WeakMap();
+    }
+
     isScalar(t: types.Type) {
         var m = this.isSubtypeOf(t, types.TYPE_SCALAR);
         if (!m) {
