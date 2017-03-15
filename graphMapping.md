@@ -45,7 +45,8 @@ parameter is fixed, partial pointer to the ticket type may be viewed as a full p
 
 Let's go back to our original function `f(r:&Repository,i:*Ticket)=>(d:TicketDescription)` 
 And then lets say that we have a way to calculate `r`, from an instance of Ticket, in this case once we
-have an instance of ticket we can caluclate values of all function parameters so we can build a function
+have an instance of ticket we can caluclate values of all function parameters so we can build a function which maps 
+instance of ticket to ticket descriptions
 
 `f(c:Ticket)=>(d:TicketDescription)`
 
