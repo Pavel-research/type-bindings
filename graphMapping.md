@@ -1,6 +1,6 @@
-#Reconstructing classes from REST endpoints
+# Reconstructing classes from REST endpoints
 
-#####Functional notation
+##### Functional notation
 
 It is always possible to represent a REST methods as a function with input and output `f(input)=>output`,
 where input and output can be deconstructed to smaller variables with a particular types.
@@ -10,7 +10,7 @@ In the future let's use following notation `f(a,b,c)=>(d,e)`  to represent REST 
 Some of this parameters can be represented as an entities of particular types. Lets use colon notation to represent 
 this: `f(a:Person,b:integer,c:integer)=>(d:Person)`
 
-#####Pointer(reference) types
+##### Pointer(reference) types
 
 No let's introduce the notation of pointer(reference) types.  
 
@@ -41,7 +41,7 @@ Now lets view a following function
 In this case once value of `r`
 parameter is fixed, partial pointer to the ticket type may be viewed as a full pointer and the function can be specialised as `f(i:&Ticket)=>(d:TicketDescription)`
 
-#####Computable parameters:
+##### Computable parameters:
 
 Let's go back to our original function `f(r:&Repository,i:*Ticket)=>(d:TicketDescription)` 
 And then lets say that we have a way to calculate `r`, from an instance of Ticket, in this case once we
