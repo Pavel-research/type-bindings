@@ -121,6 +121,8 @@ export const TYPE_DATE: Type = <Type&metakeys.Label>{
         return vl;
     }
 }
+export const TYPE_SECURITYDEFINITION: Type = {id: "securityDefinition", type: TYPE_ANY}
+export const TYPE_MODULE: Type = {id: "module", type: TYPE_ANY}
 export const TYPE_PASSWORD: Type = {id: "password", type: TYPE_STRING}
 export const TYPE_DATETIME: Type = {id: "datetime", type: TYPE_DATE}
 export const TYPE_DATEONLY: Type = {id: "date-only", type: TYPE_DATE}
@@ -326,7 +328,7 @@ export abstract class ListenableValue<T> {
         if (typeof v=="function"){
             this.listeners.push({
                 valueChanged(e){
-                    v(e)
+                    (<any>v)(e)
                 }
             })
         }
@@ -1969,9 +1971,11 @@ export function reinit(v?:{ [name:string]:Type}){
     service.clean();
     service.register(TYPE_UNION);
     service.register(TYPE_ANY);
+    service.register(TYPE_SECURITYDEFINITION);
     service.register(TYPE_LINK);
     service.register(TYPE_VIEW);
     service.register(TYPE_SCALAR);
+    service.register(TYPE_MODULE);
     service.register(TYPE_DATE);
     service.register(TYPE_DATEONLY);
     service.register(TYPE_STRING);
