@@ -1,3 +1,4 @@
+import {RESTAccessControl} from "./storage";
 export type TypeReference=Type|string
 export import metakeys=require("./metaKeys")
 export import manager=require("./manager")
@@ -22,7 +23,7 @@ export interface Type {
     details?: (Operation|string)[]
     listers?: (Operation|string)[]
     destructors?: (Operation|string)[]
-    memberCollections?:(Operation|string)[]
+    memberCollections?: (Operation|string)[]
     actions?: {[name: string]: Action}
 }
 
@@ -149,22 +150,22 @@ const isBrowser = typeof window !== 'undefined';
 if (isBrowser) {
     (<any>window).moments = moments;
 }
-(<metakeys.HasComparator>TYPE_DATE).compareFunction=(x0:any,x1:any)=>{
-    if (x0&&x1){
-        var d0=new Date(x0);
-        var d1=new Date(x1);
-        return d0.getTime()-d1.getTime();
+(<metakeys.HasComparator>TYPE_DATE).compareFunction = (x0: any, x1: any) => {
+    if (x0 && x1) {
+        var d0 = new Date(x0);
+        var d1 = new Date(x1);
+        return d0.getTime() - d1.getTime();
     }
-    if (x0){
+    if (x0) {
         return 1;
     }
     return -1;
 }
-(<metakeys.HasComparator>TYPE_NUMBER).compareFunction=(x0:any,x1:any)=>{
-    if (x0&&x1){
-       return x0-x1;
+(<metakeys.HasComparator>TYPE_NUMBER).compareFunction = (x0: any, x1: any) => {
+    if (x0 && x1) {
+        return x0 - x1;
     }
-    if (x0){
+    if (x0) {
         return 1;
     }
     return -1;
@@ -182,7 +183,7 @@ export function copy(t: TypeReference) {
 }
 
 export class HasType {
-    constructor(public readonly $type: Type,public readonly $value: any){
+    constructor(public readonly $type: Type, public readonly $value: any) {
 
     }
 }
@@ -250,7 +251,7 @@ export interface IBinding extends IGraphPoint,IContext {
     parent(): IBinding
     root(): IBinding
     collectionBinding(): CollectionBinding
-    addListener(v: IValueListener| ((v:any)=>void))
+    addListener(v: IValueListener| ((v: any) => void))
     removeListener(v: IValueListener)
     add(v: any): any
     remove(v: any): any
@@ -269,7 +270,7 @@ export interface IBinding extends IGraphPoint,IContext {
     removeOperation();
     updateOperation();
     autoCommit(): boolean;
-    enumeratedValues():IBinding
+    enumeratedValues(): IBinding
 }
 export interface IAccessControl {
 
@@ -291,7 +292,7 @@ export interface IAccessControl {
 export interface CollectionBinding {
     add(v: any);
     remove(v: any);
-    setGroupByProperty(prop:string)
+    setGroupByProperty(prop: string)
     replace(oldValue: any, newValue: any);
     componentType(): Type;
     workingCopy(): any[]
@@ -306,12 +307,12 @@ export interface CollectionBinding {
     setSelectionIndex(n: number)
     groupBy(): boolean;
     tree(): boolean;
-    children(x:any):any[]
-    expanded(x:any):boolean
-    expand(x:any)
-    collapse(x:any)
+    children(x: any): any[]
+    expanded(x: any): boolean
+    expand(x: any)
+    collapse(x: any)
 
-    levels():number[]
+    levels(): number[]
 }
 
 export abstract class ListenableValue<T> {
@@ -324,8 +325,8 @@ export abstract class ListenableValue<T> {
 
     abstract get(): T
 
-    addListener(v: IValueListener| ((v:any)=>void)) {
-        if (typeof v=="function"){
+    addListener(v: IValueListener| ((v: any) => void)) {
+        if (typeof v == "function") {
             this.listeners.push({
                 valueChanged(e){
                     (<any>v)(e)
@@ -368,7 +369,7 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
     }
 
     protected isEditable() {
-        if ((<Binding><any>this.binding).readonly){
+        if ((<Binding><any>this.binding).readonly) {
             return false;
         }
         if (this.binding.parent()) {
@@ -385,10 +386,10 @@ export class DefaultAccessControl<T extends AbstractBinding> implements IAccessC
                 return false;
             }
         }
-        if (this.binding.immutable){
+        if (this.binding.immutable) {
             return false;
         }
-        if (this.binding.type().immutable){
+        if (this.binding.type().immutable) {
             return false;
         }
         return true;
@@ -436,7 +437,8 @@ export abstract class AbstractBinding extends ListenableValue<any> implements IB
     addOperation() {
         return null;
     }
-    enumeratedValues(){
+
+    enumeratedValues() {
         return null;
     }
 
@@ -655,7 +657,7 @@ export interface InstanceValidator {
 }
 
 export let enumOptions = function (type: Type, b: IBinding) {
-    if (!type){
+    if (!type) {
         return [];
     }
     var enumv = type.enum;
@@ -702,12 +704,14 @@ export class Binding extends AbstractBinding implements IBinding {
     autoCommit() {
         return this._autoCommit;
     }
-   type(){
-       if (this.value instanceof HasType){
-           return (<Type|any>service.resolvedType(this.value.$type));
-       }
-       return super.type();
-   }
+
+    type() {
+        if (this.value instanceof HasType) {
+            return (<Type|any>service.resolvedType(this.value.$type));
+        }
+        return super.type();
+    }
+
     addVar(name: string, value: any) {
         this.variables[name] = value;
     }
@@ -743,7 +747,7 @@ export class Binding extends AbstractBinding implements IBinding {
             }
             return mm;
         }
-        if (this.value instanceof HasType){
+        if (this.value instanceof HasType) {
             return this.value.$value;
         }
         return this.value;
@@ -846,13 +850,15 @@ export class Binding extends AbstractBinding implements IBinding {
             this.changing = false;
         }
     }
-    protected beforeChange(e:ChangeEvent){
-        this.beforeChangeListeners.forEach(x=>x.valueChanged(e));
-        if (this._parent){
+
+    protected beforeChange(e: ChangeEvent) {
+        this.beforeChangeListeners.forEach(x => x.valueChanged(e));
+        if (this._parent) {
             this._parent.beforeChange(e);
         }
     }
-    beforeChangeListeners:IValueListener[]=[];
+
+    beforeChangeListeners: IValueListener[] = [];
 
     changing = false;
 
@@ -915,7 +921,7 @@ export class Binding extends AbstractBinding implements IBinding {
             }
             this.refreshChildren();
             if (this._parent && this.id) {
-                if (chV || typeof mm == "object"|| ((<metakeys.EnumValues>this.type()).enumValues)||(this.type().computeFunction)) {
+                if (chV || typeof mm == "object" || ((<metakeys.EnumValues>this.type()).enumValues) || (this.type().computeFunction)) {
                     var v = this.autoinit;
                     this.listeners.forEach(x => x.valueChanged(null));
                 }
@@ -927,53 +933,54 @@ export class Binding extends AbstractBinding implements IBinding {
             this.refreshing = false;
         }
     }
-    private _enum: Binding
-    private _btransform: (x:any)=>any
-    private _transform: (x:any)=>any
 
-    fromReferenceToOriginal(v:any):any{
-        if (!this._btransform){
+    private _enum: Binding
+    private _btransform: (x: any) => any
+    private _transform: (x: any) => any
+
+    fromReferenceToOriginal(v: any): any {
+        if (!this._btransform) {
             this.enumeratedValues();
         }
-        if (!this._btransform){
+        if (!this._btransform) {
             return v;
 
         }
         return this._btransform(v);
     }
 
-    fromOriginalToReference(x:any):any{
-        if (!this._transform){
+    fromOriginalToReference(x: any): any {
+        if (!this._transform) {
             this.enumeratedValues();
         }
-        if (!this._transform){
+        if (!this._transform) {
             return x;
 
         }
         return this._transform(x);
     }
 
-    enumeratedValues():IBinding{
-        if (this._enum){
+    enumeratedValues(): IBinding {
+        if (this._enum) {
             return this._enum;
         }
-        if (this.type().enum){
-            this._enum=new Binding("$enum");
-            this._enum.value=this.type().enum;
-            this._enum._type=array(this._type);
+        if (this.type().enum) {
+            this._enum = new Binding("$enum");
+            this._enum.value = this.type().enum;
+            this._enum._type = array(this._type);
         }
-        var ev=(<metakeys.EnumValues>this.type()).enumValues;
-        if (ev){
-            var eb=new ComputedBinding("$enum",(x)=>{
+        var ev = (<metakeys.EnumValues>this.type()).enumValues;
+        if (ev) {
+            var eb = new ComputedBinding("$enum", (x) => {
 
-            },false,this);
+            }, false, this);
             this.addPrecomitListener({
                 valueChanged(e){
                     eb.refresh();
                 }
             })
-            eb._type=this._type;
-            this._enum=eb;
+            eb._type = this._type;
+            this._enum = eb;
         }
         else {
             var _enumOptions = enumOptionsBinding(this.type(), this);
@@ -992,7 +999,8 @@ export class Binding extends AbstractBinding implements IBinding {
     id() {
         return this._id;
     }
-    referencedType(){
+
+    referencedType() {
         var ref = (<metakeys.Reference>this.type()).reference;
         if (ref) {
             var tr: (x: any) => any = null;
@@ -1003,13 +1011,14 @@ export class Binding extends AbstractBinding implements IBinding {
                     var nnn = <string>ref;
                     if (nnn.indexOf('.') != -1) {
                         var cmp = service.resolveTypeByName(nnn.substring(0, nnn.indexOf('.')));
-                        if (cmp.id!="any"){
-                        return cmp}
-                    }
+                        if (cmp.id != "any") {
+                            return cmp
+                        }
                     }
                 }
             }
-            return null;
+        }
+        return null;
     }
 
 
@@ -1035,9 +1044,9 @@ export class Binding extends AbstractBinding implements IBinding {
             b = new storage.BasicPagedCollection(name, <metakeys.WebCollection>service.resolvedType(p.type), this);
         }
         else {
-            if (p&&p.type.remote){
-                b=new storage.RemoteValueBinding(name);
-                b.context=this;
+            if (p && p.type.remote) {
+                b = new storage.RemoteValueBinding(name);
+                b.context = this;
 
             }
             else {
@@ -1210,39 +1219,39 @@ export class ComputedBinding extends Binding implements IValueListener {
         return this.f(this.parent());
     }
 }
-function canCompute(b:Binding,x:Parameter,allowVar=true){
-    if (b.type().basicPaging){
-        var v=b.type().basicPaging;
-        if (v.offset==x.id){
+function canCompute(b: Binding, x: Parameter, allowVar = true) {
+    if (b.type().basicPaging) {
+        var v = b.type().basicPaging;
+        if (v.offset == x.id) {
             return true;
         }
-        if (v.page==x.id){
+        if (v.page == x.id) {
             return true;
         }
-        if (v.limit==x.id){
+        if (v.limit == x.id) {
             return true;
         }
     }
-    if ((<metakeys.Reference>x).reference){
-        var ref:string|boolean=(<metakeys.Reference>x).reference
-        if (typeof ref=="string") {
-            var rs: string=ref;
-            var member=rs.indexOf('.');
-            if (member!=-1){
-                var typeName=rs.substring(0,member);
+    if ((<metakeys.Reference>x).reference) {
+        var ref: string|boolean = (<metakeys.Reference>x).reference
+        if (typeof ref == "string") {
+            var rs: string = ref;
+            var member = rs.indexOf('.');
+            if (member != -1) {
+                var typeName = rs.substring(0, member);
                 //var pname=rs.substring(member+1);
-                var ts=service.resolveTypeByName(typeName);
-                var lll=b;
-                while (lll){
-                    if (service.isSubtypeOf(lll.type(),ts)){
+                var ts = service.resolveTypeByName(typeName);
+                var lll = b;
+                while (lll) {
+                    if (service.isSubtypeOf(lll.type(), ts)) {
                         return true;
                     }
-                    if (!lll.parent()){
-                        if (lll.context){
-                            lll=<any>lll.context;
+                    if (!lll.parent()) {
+                        if (lll.context) {
+                            lll = <any>lll.context;
                         }
-                        else{
-                            lll=null;
+                        else {
+                            lll = null;
                         }
                     }
                     else {
@@ -1258,35 +1267,35 @@ function canCompute(b:Binding,x:Parameter,allowVar=true){
             return true;
         }
     }
-        if ((<FunctionalValue>x).computeFunction) {
-            return true;
-        }
-        if ((<metakeys.EqualTo>x).equalTo) {
-            return true;
-        }
+    if ((<FunctionalValue>x).computeFunction) {
+        return true;
+    }
+    if ((<metakeys.EqualTo>x).equalTo) {
+        return true;
+    }
 
 }
-function computeParameter(b:Binding,x:Parameter,allowVar=true){
-    if ((<metakeys.Reference>x).reference){
-        var ref:string|boolean=(<metakeys.Reference>x).reference
-        if (typeof ref=="string") {
-            var rs: string=ref;
-            var member=rs.indexOf('.');
-            if (member!=-1){
-                var typeName=rs.substring(0,member);
-                var pname=rs.substring(member+1);
-                var ts=service.resolveTypeByName(typeName);
-                var lll=b;
-                while (lll){
-                    if (service.isSubtypeOf(lll.type(),ts)){
+function computeParameter(b: Binding, x: Parameter, allowVar = true) {
+    if ((<metakeys.Reference>x).reference) {
+        var ref: string|boolean = (<metakeys.Reference>x).reference
+        if (typeof ref == "string") {
+            var rs: string = ref;
+            var member = rs.indexOf('.');
+            if (member != -1) {
+                var typeName = rs.substring(0, member);
+                var pname = rs.substring(member + 1);
+                var ts = service.resolveTypeByName(typeName);
+                var lll = b;
+                while (lll) {
+                    if (service.isSubtypeOf(lll.type(), ts)) {
                         return lll.get(pname)
                     }
-                    if (!lll.parent()){
-                        if (lll.context){
-                            lll=<any>lll.context;
+                    if (!lll.parent()) {
+                        if (lll.context) {
+                            lll = <any>lll.context;
                         }
-                        else{
-                            lll=null;
+                        else {
+                            lll = null;
                         }
                     }
                     else {
@@ -1302,41 +1311,41 @@ function computeParameter(b:Binding,x:Parameter,allowVar=true){
             return v;
         }
     }
-        if ((<FunctionalValue>x).computeFunction) {
-            var exp = calcExpression((<FunctionalValue>x).computeFunction, b);
-            if (exp) {
-                return exp;
-            }
+    if ((<FunctionalValue>x).computeFunction) {
+        var exp = calcExpression((<FunctionalValue>x).computeFunction, b);
+        if (exp) {
+            return exp;
         }
+    }
 
-        if ((<metakeys.EqualTo>x).equalTo) {
-            var eq = (<metakeys.EqualTo>x).equalTo;
-            return calcExpression(eq, b);
-        }
+    if ((<metakeys.EqualTo>x).equalTo) {
+        var eq = (<metakeys.EqualTo>x).equalTo;
+        return calcExpression(eq, b);
+    }
 
 
 }
-function computeParameterBinding(b:Binding,x:Parameter):IBinding{
-    if ((<metakeys.Reference>x).reference){
-        var ref:string|boolean=(<metakeys.Reference>x).reference
-        if (typeof ref=="string") {
-            var rs: string=ref;
-            var member=rs.indexOf('.');
-            if (member!=-1){
-                var typeName=rs.substring(0,member);
-                var pname=rs.substring(member+1);
-                var ts=service.resolveTypeByName(typeName);
-                var lll=b;
-                while (lll){
-                    if (service.isSubtypeOf(lll.type(),ts)){
+function computeParameterBinding(b: Binding, x: Parameter): IBinding {
+    if ((<metakeys.Reference>x).reference) {
+        var ref: string|boolean = (<metakeys.Reference>x).reference
+        if (typeof ref == "string") {
+            var rs: string = ref;
+            var member = rs.indexOf('.');
+            if (member != -1) {
+                var typeName = rs.substring(0, member);
+                var pname = rs.substring(member + 1);
+                var ts = service.resolveTypeByName(typeName);
+                var lll = b;
+                while (lll) {
+                    if (service.isSubtypeOf(lll.type(), ts)) {
                         return lll.binding(pname);
                     }
-                    if (!lll.parent()){
-                        if (lll.context){
-                            lll=<any>lll.context;
+                    if (!lll.parent()) {
+                        if (lll.context) {
+                            lll = <any>lll.context;
                         }
-                        else{
-                            lll=null;
+                        else {
+                            lll = null;
                         }
                     }
                     else {
@@ -1348,32 +1357,32 @@ function computeParameterBinding(b:Binding,x:Parameter):IBinding{
     }
     var v = b.lookupVar(x.id);
     if (v) {
-        var b=new Binding(x.id);
-        b._type=x;
-        b.value=v;
+        var b = new Binding(x.id);
+        b._type = x;
+        b.value = v;
         return b;
     }
 
     if ((<FunctionalValue>x).computeFunction) {
-        var exp = calcExpression((<FunctionalValue>x).computeFunction,b);
-        var b=new Binding(x.id);
-        b._type=x;
-        b.value=exp;
+        var exp = calcExpression((<FunctionalValue>x).computeFunction, b);
+        var b = new Binding(x.id);
+        b._type = x;
+        b.value = exp;
         return b;
     }
     if ((<metakeys.EqualTo>x).equalTo) {
         var eq = (<metakeys.EqualTo>x).equalTo;
-        var b=new Binding(x.id);
-        b._type=x;
-        b.value=eq;
+        var b = new Binding(x.id);
+        b._type = x;
+        b.value = eq;
         return b;
     }
 
     return null;
 }
-export class Parameterizeable extends Binding{
+export class Parameterizeable extends Binding {
 
-    param(name: string){
+    param(name: string) {
         return this.lookupVar(name);
     }
 
@@ -1381,9 +1390,9 @@ export class Parameterizeable extends Binding{
 export class OperationBinding extends Parameterizeable {
 
     canCompute(x: Parameter) {
-        var vvl=canCompute(this.ctx,x);
+        var vvl = canCompute(this.ctx, x);
 
-        return vvl||canCompute(this,x,false);
+        return vvl || canCompute(this, x, false);
     }
 
     lookupVar(v: string) {
@@ -1398,11 +1407,11 @@ export class OperationBinding extends Parameterizeable {
     }
 
     compute(x: Parameter) {
-        var vvl=computeParameter(this.ctx,x);
-        if (vvl instanceof Error){
-            vvl=false;
+        var vvl = computeParameter(this.ctx, x);
+        if (vvl instanceof Error) {
+            vvl = false;
         }
-        return vvl||computeParameter(this,x,false);
+        return vvl || computeParameter(this, x, false);
     }
 
     constructor(private t: Operation, private ctx: Binding) {
@@ -1473,7 +1482,7 @@ export class OperationBinding extends Parameterizeable {
 export interface ConversionRule {
     from: string
     to: string
-    code?:(v)=>any
+    code?: (v) => any
     selfRule?: string
     autoConvertKnownProperties?: boolean
     asssertions?: {[name: string]: string}
@@ -1497,102 +1506,103 @@ export class ViewBinding extends Binding {
     parameterModifyCount = 0;
 
 
-    processOrderingChange(){
-        var ord=null;
-        var v:any;
-        this.parameterBindings().forEach(x=>{
-            if ((<metakeys.Ordering>x.type()).ordering){
-                ord=(<metakeys.Ordering>x.type()).ordering;
-                v=x.value;
+    processOrderingChange() {
+        var ord = null;
+        var v: any;
+        this.parameterBindings().forEach(x => {
+            if ((<metakeys.Ordering>x.type()).ordering) {
+                ord = (<metakeys.Ordering>x.type()).ordering;
+                v = x.value;
             }
         })
-        var o=ord[v];
-        var asc=false;
-        var prop=null;
+        var o = ord[v];
+        var asc = false;
+        var prop = null;
 
-        if (typeof o=="object"){
-            asc=!o.descending;
-            prop=o.property;
+        if (typeof o == "object") {
+            asc = !o.descending;
+            prop = o.property;
         }
-        else{
-            prop=o;
+        else {
+            prop = o;
         }
-        this.parameterBindings().forEach(x=>{
-            if ((<metakeys.Ordering>x.type()).sortDirection){
-                var vl=x.value;
-                if (vl=="asc"){
-                    asc=true;
+        this.parameterBindings().forEach(x => {
+            if ((<metakeys.Ordering>x.type()).sortDirection) {
+                var vl = x.value;
+                if (vl == "asc") {
+                    asc = true;
                 }
             }
         })
-        if (this.hasAllData()){
-            if (this.localFilters){
-                this.localFilters.base=cu.sort(this.localFilters.base,this.collectionBinding().componentType(),prop,asc)
-                this.localFilters.setBase(this.value,this.collectionBinding().componentType());
-                this.localFilters.set(ord,v);
-                this.value=this.localFilters.filtered;
+        if (this.hasAllData()) {
+            if (this.localFilters) {
+                this.localFilters.base = cu.sort(this.localFilters.base, this.collectionBinding().componentType(), prop, asc)
+                this.localFilters.setBase(this.value, this.collectionBinding().componentType());
+                this.localFilters.set(ord, v);
+                this.value = this.localFilters.filtered;
             }
-            else{
-                this.value=cu.sort(this.value,this.collectionBinding().componentType(),prop,asc);
+            else {
+                this.value = cu.sort(this.value, this.collectionBinding().componentType(), prop, asc);
             }
             this._cb.refresh();
             this.changed();
         }
-        else{
+        else {
             this.innerParametersChanged();
         }
     }
 
-    localFilters:cu.FilteredCollection
+    localFilters: cu.FilteredCollection
 
-    beforeLocalFilters:any;
+    beforeLocalFilters: any;
 
-    sortDirectionParameter():IBinding{
-        var result:IBinding=null;
-        this.parameterBindings().forEach(x=>{
-            if ((<metakeys.Ordering>x.type()).sortDirection){
-                result=x;
+    sortDirectionParameter(): IBinding {
+        var result: IBinding = null;
+        this.parameterBindings().forEach(x => {
+            if ((<metakeys.Ordering>x.type()).sortDirection) {
+                result = x;
             }
         })
         return result;
     }
 
-    processFilteringChange(pbnd:IBinding,ord:metakeys.Filter&Type,v:any){
-        if (this.hasAllData()){
-            if (!this.localFilters){
-                this.beforeLocalFilters=this.oldParameters;
-                if (this.beforeLocalFilters[pbnd.id()]){
+    processFilteringChange(pbnd: IBinding, ord: metakeys.Filter&Type, v: any) {
+        if (this.hasAllData()) {
+            if (!this.localFilters) {
+                this.beforeLocalFilters = this.oldParameters;
+                if (this.beforeLocalFilters[pbnd.id()]) {
                     this.potentiallyDelayChange(pbnd);
                     return;
                 }
-                this.localFilters=new cu.FilteredCollection();
-                this.localFilters.setBase(this.value,this.collectionBinding().componentType());
-                this.localFilters.set(ord,v);
-                this.value=this.localFilters.filtered;
+                this.localFilters = new cu.FilteredCollection();
+                this.localFilters.setBase(this.value, this.collectionBinding().componentType());
+                this.localFilters.set(ord, v);
+                this.value = this.localFilters.filtered;
                 this._cb.refresh();
                 this.changed();
             }
-            else{
-                if (this.beforeLocalFilters[pbnd.id()]){
-                    this.localFilters=null;
+            else {
+                if (this.beforeLocalFilters[pbnd.id()]) {
+                    this.localFilters = null;
                     this.potentiallyDelayChange(pbnd);
                     return;
                 }
-                else{
-                    this.localFilters.set(ord,v);
-                    this.value=this.localFilters.filtered;
+                else {
+                    this.localFilters.set(ord, v);
+                    this.value = this.localFilters.filtered;
                     this._cb.refresh();
                     this.changed();
                 }
             }
             //we already have enough data to filter locally;
         }
-        else{
+        else {
             this.potentiallyDelayChange(pbnd)
         }
     }
-    potentiallyDelayChange(pbnd:IBinding){
-        if (pbnd&&pbnd.enumeratedValues()) {
+
+    potentiallyDelayChange(pbnd: IBinding) {
+        if (pbnd && pbnd.enumeratedValues()) {
             this.innerParametersChanged();
             return;
         }
@@ -1604,7 +1614,7 @@ export class ViewBinding extends Binding {
         }, 800)//FIXME
     }
 
-    hasAllData(){
+    hasAllData() {
         return false;
     }
 
@@ -1612,34 +1622,34 @@ export class ViewBinding extends Binding {
         this.parameterModifyCount++;
         var cp = this.parameterModifyCount;
         if (this._parametersOwnerBinding.getLastEvent()) {
-            var pdnd=this._parametersOwnerBinding.getLastEvent().source;
-            if (pdnd.id()=="$groupBy"){
-                var val=pdnd.get();
-                if (val=="$none"){
-                    val="";
+            var pdnd = this._parametersOwnerBinding.getLastEvent().source;
+            if (pdnd.id() == "$groupBy") {
+                var val = pdnd.get();
+                if (val == "$none") {
+                    val = "";
                 }
                 this.collectionBinding().setGroupByProperty(val);
                 return;
             }
             var tp = pdnd.type();
-            var ordering=(<metakeys.Ordering>tp).ordering;
-            if (ordering){
-                var value=pdnd.get();
+            var ordering = (<metakeys.Ordering>tp).ordering;
+            if (ordering) {
+                var value = pdnd.get();
                 this.processOrderingChange();
                 //this.sort()
                 return;
             }
-            var sd=(<metakeys.Ordering>tp).sortDirection;
-            if (sd){
-                var value=pdnd.get();
+            var sd = (<metakeys.Ordering>tp).sortDirection;
+            if (sd) {
+                var value = pdnd.get();
                 this.processOrderingChange();
                 //this.sort()
                 return;
             }
-            var filter=(<metakeys.Filter&Type>tp).filter;
-            if (filter){
-                var value=pdnd.get();
-                this.processFilteringChange(pdnd,(<metakeys.Filter&Type>tp),value);
+            var filter = (<metakeys.Filter&Type>tp).filter;
+            if (filter) {
+                var value = pdnd.get();
+                this.processFilteringChange(pdnd, (<metakeys.Filter&Type>tp), value);
                 //this.sort()
                 return;
             }
@@ -1647,10 +1657,11 @@ export class ViewBinding extends Binding {
         this.potentiallyDelayChange(pdnd);
     }
 
-    innerParametersChanged(){
+    innerParametersChanged() {
         this.value = null;
         this.changed();
     }
+
     statusChanged() {
         this.value = null;
         if (this.parameterStatus().valid) {
@@ -1658,75 +1669,77 @@ export class ViewBinding extends Binding {
         }
     }
 
-    _parametersOwnerBinding:Binding;
+    _parametersOwnerBinding: Binding;
 
-    allParameterBindings(){
-        if (this._allParamBindings){
+    allParameterBindings() {
+        if (this._allParamBindings) {
             return this._allParamBindings;
         }
         this.parameterBindings();
         return this._allParamBindings;
     }
-    private oldParameters:any
+
+    private oldParameters: any
+
     parameterBindings(): Binding[] {
         if (this._paramBindings) {
             return this._paramBindings;
         }
         this._paramBindings = [];
-        this._allParamBindings=[];
+        this._allParamBindings = [];
         var ps = (<metakeys.WebCollection>this.type()).parameters;
         let parameterType: ObjectType = {
             id: "Parameters",
             type: "object",
             properties: {}
         }
-        var gb=(<metakeys.GroupBy>this.type()).groupBy;
-        if (gb&&gb.allowUserConfiguration){
-            var values=[];
-            if (gb.allowedGropings){
-                values=gb.allowedGropings;
+        var gb = (<metakeys.GroupBy>this.type()).groupBy;
+        if (gb && gb.allowUserConfiguration) {
+            var values = [];
+            if (gb.allowedGropings) {
+                values = gb.allowedGropings;
             }
-            else{
-                var vp=service.visibleProperties(service.componentType(this.type()));
-                vp=vp.filter(x=>{
-                    var vl=service.isMultiSelect(x.type)||service.isFiniteSetOfInstances(x.type);
+            else {
+                var vp = service.visibleProperties(service.componentType(this.type()));
+                vp = vp.filter(x => {
+                    var vl = service.isMultiSelect(x.type) || service.isFiniteSetOfInstances(x.type);
                     return vl;
                 })
-                values=vp.map(x=>x.id);
+                values = vp.map(x => x.id);
             }
-            var ed=[];
-            values.forEach(x=>{
-                var p=service.property(service.componentType(this.type()),x);
-                if (p){
+            var ed = [];
+            values.forEach(x => {
+                var p = service.property(service.componentType(this.type()), x);
+                if (p) {
                     ed.push(service.caption(p));
                 }
             })
             values.push("$none");
             ed.push("None")
             ps.push(<any>{
-                id:"$groupBy",
-                location:"other",
+                id: "$groupBy",
+                location: "other",
                 displayName: "Group By",
                 type: "string",
                 enum: values,
                 enumDescriptions: ed,
-                default:gb.property,
-                required:false
+                default: gb.property,
+                required: false
             });
-            var pl=(<metakeys.ParametersLayout>this.type()).parametersLayout;
-            if (pl){
-                if (pl.initiallyVisible){
+            var pl = (<metakeys.ParametersLayout>this.type()).parametersLayout;
+            if (pl) {
+                if (pl.initiallyVisible) {
                     pl.initiallyVisible.push("$groupBy");
                 }
             }
         }
-        var bnd=this;
+        var bnd = this;
         this._parametersOwnerBinding = new Binding("");
         this._parametersOwnerBinding._type = parameterType;
         this._parametersOwnerBinding.value = {};
         this._parametersOwnerBinding.beforeChangeListeners.push({
             valueChanged(e){
-                bnd.oldParameters=utils.deepCopy(bnd._parametersOwnerBinding.value);
+                bnd.oldParameters = utils.deepCopy(bnd._parametersOwnerBinding.value);
             }
         })
         var b = this;
@@ -1741,8 +1754,8 @@ export class ViewBinding extends Binding {
             this._parametersOwnerBinding.set(service.newInstance(this._parametersOwnerBinding.type()))
             if (ps) {
                 ps.forEach(x => {
-                    if (canCompute(this,x)){
-                        var b1=<IBinding>computeParameterBinding(this,x);
+                    if (canCompute(this, x)) {
+                        var b1 = <IBinding>computeParameterBinding(this, x);
                         if (b1) {
                             b1.addListener({
                                 valueChanged(){
@@ -1765,9 +1778,9 @@ export class ViewBinding extends Binding {
         }
         this._parametersOwnerBinding.addPrecomitListener({//
             valueChanged(){
-                var ev=b._parametersOwnerBinding.getLastEvent();
-                if (b.parameterBindings().indexOf(<Binding>ev.source)==-1){
-                    if (b.allParameterBindings().indexOf(<Binding>ev.source)!=-1){
+                var ev = b._parametersOwnerBinding.getLastEvent();
+                if (b.parameterBindings().indexOf(<Binding>ev.source) == -1) {
+                    if (b.allParameterBindings().indexOf(<Binding>ev.source) != -1) {
                         b.innerParametersChanged();
                         return;
                     }
@@ -1799,9 +1812,10 @@ export import calcCondition=compute.calcCondition;
 
 export class StatusBinding extends ComputedBinding implements IValueListener {
 
-    refresh(){
+    refresh() {
         this.valueChanged(null)
     }
+
     constructor(p: Binding) {
         super("$status", v => {
             var validator = vs.INSTANCE.validator(p.type());
@@ -1861,15 +1875,15 @@ export function enumOptionsBinding(t: Type, c: IBinding): EnumResult {
         }
         var lsts = service.listers(cmp);
         if (lsts.length > 0) {
-            if ((<any>c)._enum){
-                var st:storage.BasicPagedCollection=(<any>c)._enum;
+            if ((<any>c)._enum) {
+                var st: storage.BasicPagedCollection = (<any>c)._enum;
                 return {collection: ((<any>c)._enum), transformer: tr, btrasform: btr};
             }
             var st = new storage.BasicPagedCollection(lsts[0].id, lsts[0], c);
             st.context = c;
-            (<any>c)._enum=st;
-            (<any>c)._btransform=btr;
-            (<any>c)._transform=tr;
+            (<any>c)._enum = st;
+            (<any>c)._btransform = btr;
+            (<any>c)._transform = tr;
             return {collection: st, transformer: tr, btrasform: btr};
         }
     }
@@ -1879,18 +1893,18 @@ export import setAuthService= storage.setAuthServive
 export function unidirectional(b1: IBinding, b2: Binding) {
     b1.addListener({
         valueChanged(){
-            var v=b1.get();
-            if (!v){
-                v=[];
+            var v = b1.get();
+            if (!v) {
+                v = [];
             }
-            if (!Array.isArray(v)){
-                v=[v]
+            if (!Array.isArray(v)) {
+                v = [v]
             }
             b2.collectionBinding().setSelection(v);
         }
     })
-    var sb=b2.collectionBinding().selectionBinding();
-    (<AbstractBinding>sb).immutable=true;
+    var sb = b2.collectionBinding().selectionBinding();
+    (<AbstractBinding>sb).immutable = true;
     //b2.readonly=true;
 }
 class CC {
@@ -1941,33 +1955,32 @@ class CC {
 }
 
 
-
 export function bidirectional(b1: IBinding, b2: Binding, transformer?: (x: any) => any, btransformer?: (x: any) => any) {
     new CC(b1, b2, transformer, btransformer);
 }
 service.addRule({
     from: "scalar",
-    to:"date-only",
-    code:(v)=>{
+    to: "date-only",
+    code: (v) => {
         return moments(v).format("YYYY-MM-DD")
     }
 })
 service.addRule({
     from: "datetime",
-    to:"date-only",
-    code:(v)=>{
+    to: "date-only",
+    code: (v) => {
         return moments(v).format("YYYY-MM-DD")
     }
 })
 service.addRule({
     from: "scalar",
-    to:"date",
-    code:(v)=>{
+    to: "date",
+    code: (v) => {
         return moments(v).toISOString();
     }
 })//
 
-export function reinit(v?:{ [name:string]:Type}){
+export function reinit(v?: {[name: string]: Type}) {
     service.clean();
     service.register(TYPE_UNION);
     service.register(TYPE_ANY);
@@ -1998,10 +2011,146 @@ export function reinit(v?:{ [name:string]:Type}){
     service.register(TYPE_CODE);
     service.register(TYPE_MAP);
     service.register(TYPE_HTML);
-    if (v){
-        Object.keys(v).forEach(x=>{
+    if (v) {
+        Object.keys(v).forEach(x => {
             service.register(v[x]);
         })
     }
 }
 reinit();
+
+export class FunctionProxy {
+    constructor(private v: any, private resource, private name: string) {
+
+    }
+
+    get(target: any, property: string, receiver) {
+        console.log(property);
+
+    }
+}
+class CCollection extends storage.BasicPagedCollection {
+
+    user: string
+    password: string
+
+    auth() {
+        return false;
+    }
+    parameterStatus(){
+        return ok();
+    }
+
+    patchAuth(lr: storage.Request): storage.Request {
+        lr.auth = {user: this.user, password: this.password}
+        return lr;
+    }
+}
+
+export class WebCollection {
+
+    constructor(private op: Operation, private options: any,private base:any=null) {
+
+    }
+
+    forEach(f: (v: any) => void) {
+        var collection = new CCollection("", <any>this.op, new Binding(""));
+        collection.user = this.options.user;
+        collection.password = this.options.password;
+        collection.allParameterBindings().forEach(x=>{
+            if (x.type().reference){
+                var rs=x.type().reference;
+                var Pname=rs.substring(rs.indexOf('.')+1);
+                if(this.base[Pname]){
+                    x.set(this.base[Pname]);
+                }
+            }
+        })
+        var promise = new Promise((resolve, reject) =>{
+            // do a thing, possibly async, then…
+            collection.addListener(x => {
+                if (!collection.isLoading()&&collection.pageCount()==0){
+                    resolve(null);
+                }
+                collection.requestAll().then((e, v, r) => {
+                    var ps:Promise<any>[]=[]
+                    v.forEach(x => {
+                        var r=f(proxyFunc(x, (<any>this.op).itemType, this.options))
+                        if (r){
+                            ps.push(<any>r);
+                        }
+                    });
+                    if (ps.length>0){
+                        Promise.all(ps).then(()=>resolve(null))
+                    }
+                    else {
+                        resolve(null);
+                    }
+                })
+
+            })
+            collection.get();
+        });
+        return promise;
+    }
+}
+function proxyFunc(v: any, t: Type, o: any) {
+    var rs = service.resolvedType(t);
+    const val = new Proxy({}, {
+        get: (target: any, property: string, receiver) => {
+            if (v[property]) {
+                return v[property];
+            }
+            var p: Property = null;
+            service.properties(rs).forEach(x => {
+                if (x.id.indexOf(property) != -1) {
+                    p = x;
+                }
+            })
+            return function () {
+                return new WebCollection(<any>service.resolvedType(p.type), o,v);
+            }
+        },
+    })
+    return val;
+}
+
+export class ResourceProxy {
+    constructor(private v: any, private name: string, private  options: any) {
+
+    }
+
+    get(target: any, property: string, receiver) {
+        var ll = this.v;
+        var ln = this.name;
+        var opts = this.options;
+        return function () {
+            var t: Type = null;
+            Object.keys(ll.types).forEach(x => {
+                //console.log(ll.types[x]);
+                var name: string = ll.types[x].id;
+                if (name && name.toLowerCase().endsWith(ln)) {
+                    t = ll.types[x];
+                }
+            })
+            var op: Operation;
+            Object.keys(ll.types).forEach(x => {
+                //console.log(ll.types[x]);
+                var name: string = ll.types[x].methodName;
+                if (name && name == property) {
+                    op = ll.types[x];
+                }
+            })
+            return new WebCollection(op, opts);
+        };
+    }
+}
+export function createClient(v: any, options: any) {
+    Object.keys(v.types).forEach(x => service.register(v.types[x]));
+    const val = new Proxy({}, {
+        get: (target: any, property: string, receiver) => {
+            return new Proxy({}, new ResourceProxy(v, property, options));
+        },
+    })
+    return val;
+}

@@ -446,6 +446,9 @@ export class BasicPagedCollection extends PagedCollection {
     protected remover: types.Operation;
     protected updater: types.Operation;
 
+
+
+
     addOperation(): types.Operation {
         return this.adder
     }
@@ -585,9 +588,7 @@ export class BasicPagedCollection extends PagedCollection {
         }
         //all parameters
         var lr = this.info.getPage(num, this.itemsPerPage, this.allParameterBindings());//all storage
-        if (authServiceHolder.service) {
-            lr = authServiceHolder.service.patchRequest(this, lr);
-        }
+        lr=this.patchAuth(lr);
 
         var q = this.lastRevision;
         this.executor.execute(lr).then((err, x, extra) => {
@@ -699,9 +700,7 @@ export class BasicPagedCollection extends PagedCollection {
         var thenableResults = [];
         for (var i = 0; i < this.pageCount(); i++) {
             var lr = this.info.getPage(i, this.itemsPerPage, this.allParameterBindings());//all storage
-            if (authServiceHolder.service) {
-                lr = authServiceHolder.service.patchRequest(this, lr);
-            }
+            lr = this.patchAuth(lr);
             var ir = this.executor.execute(lr);
             (<any>ir).index = i;
             components.push(ir);
@@ -728,6 +727,13 @@ export class BasicPagedCollection extends PagedCollection {
         return allReady;
     }
 
+    protected patchAuth(lr: Request) {
+        if (authServiceHolder.service) {
+            lr = authServiceHolder.service.patchRequest(this, lr);
+        }
+        return lr;
+    }
+
     _pageCount: number = -1;
 
     get(): any[] {
@@ -738,7 +744,7 @@ export class BasicPagedCollection extends PagedCollection {
             this.error = true;
             return []
         }
-        if (this.accessControl().needsAuthentification()) {
+        if (this.auth()) {
             return [];
         }
         if (this.error) {
@@ -750,8 +756,11 @@ export class BasicPagedCollection extends PagedCollection {
         if (this._isLoading) {
             return [];
         }
-
         this.requestPage(this.currentPageNum);
+    }
+
+    protected auth() {
+        return this.accessControl().needsAuthentification();
     }
 
     set(v: any) {
@@ -803,6 +812,7 @@ types.service.registerExecutor("rest", {
         var template = opInfo.template;
         var cm = new Binding(o.id);
         cm._type = o;
+
         if (authServiceHolder.service) {
             template = authServiceHolder.service.patchRequest(cm, template);
         }
