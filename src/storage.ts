@@ -174,7 +174,7 @@ class RequestExecutor {
         if (r.auth) {
             rr.auth(r.auth.user, r.auth.password);
         }
-        rr = rr.query({"$timestamp": "" + new Date().getMilliseconds()})
+        //rr = rr.query({"$timestamp": "" + new Date().getMilliseconds()})
 
         //rr.set("Cache-Control","max-age=0")
         var result = new BasicThenable();
@@ -204,9 +204,10 @@ class OperationInfo {
     constructor(t: types.Operation&any) {
         var req: Request = {
             method: t.method ? t.method.toUpperCase() : "GET",
-            url: t.location,
+            url: t.location?t.location:"{baseUri}"+(<any>t).relativeUrl,
             parameters: []
         }
+
         if (!req.url) {
             if (t.url && t.baseUri) {
                 req.url = t.baseUri + t.url.substring(1);
@@ -809,6 +810,13 @@ types.service.registerExecutor("rest", {
                 })
             }
         })
+        if (!o.location){
+            opInfo.template.parameters.push({
+                location: ParameterLocation.URL,
+                name: "baseUri",
+                value: parameters["baseUri"],
+            })
+        }
         var template = opInfo.template;
         var cm = new Binding(o.id);
         cm._type = o;
