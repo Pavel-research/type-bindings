@@ -273,7 +273,6 @@ describe("Simple bindings tests", function () {
         assert(nm.required);
     })
     it ("link parsing",function () {
-
         let header=`<https://api.github.com/search/issues?page=4&q=raml&%24timestamp=818>; rel="next", <https://api.github.com/search/issues?page=34&q=raml&%24timestamp=818>; rel="last", <https://api.github.com/search/issues?page=1&q=raml&%24timestamp=818>; rel="first", <https://api.github.com/search/issues?page=2&q=raml&%24timestamp=818>; rel="prev`
         st.linkHeadersParser(header);
     })
