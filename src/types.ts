@@ -343,8 +343,8 @@ export abstract class ListenableValue<T> {
     }
 }
 export interface Parameter extends Type {
-    location: "query"|"uri"|"header"|"body"|"other"
-    required: boolean
+    location: string
+    required?: boolean
 }
 
 export interface Operation {
@@ -1405,6 +1405,11 @@ export class OperationBinding extends Parameterizeable {
         }
         return super.lookupVar(v);
     }
+    setContext(v:any){
+        Object.keys(v).forEach(x=>{
+            this.ctx.addVar(x,v[x]);
+        })
+    }
 
     compute(x: Parameter) {
         var vvl = computeParameter(this.ctx, x);
@@ -1445,6 +1450,12 @@ export class OperationBinding extends Parameterizeable {
             this._type = parameterType;
             this.value = service.newInstance(this._type);
         }
+
+        ///this._type=t.result;
+    }
+
+    resultType(){
+        return this.t.result;
     }
 
 
@@ -1452,6 +1463,18 @@ export class OperationBinding extends Parameterizeable {
         var vl = this.get();
         var rs = {};
         var ps: Parameter[] = [];
+        if (!this.t.location){
+            var val = this.ctx.lookupVar("baseUri");
+            if (val) {
+                rs["baseUri"] = val;
+
+            }
+            // ps.push({
+            //     id:"baseUri",
+            //     location:"uri",
+            //     type:"string"
+            // })
+        }
         this.t.parameters.forEach(x => {
             var val = this.compute(x);
             if (val) {
@@ -1459,12 +1482,14 @@ export class OperationBinding extends Parameterizeable {
 
             }
             else {
-                ps.push(x);
+                if (x.required) {
+                    ps.push(x);
+                }
             }
         })
         if (ps.length == 1) {
             var tp = service.resolvedType(<string>ps[0].type);
-            if (this.context) {
+            if (this.context&&(<any>this.context).type) {
                 if (!service.isSubtypeOf(tp, (<Binding>this.context).type())) {
                     vl = service.convert(tp, (<Binding>this.context).type(), vl)
                 }
@@ -2061,7 +2086,11 @@ export class WebCollection {
             if (x.type().reference){
                 var rs=x.type().reference;
                 var Pname=rs.substring(rs.indexOf('.')+1);
-                if(this.base[Pname]){
+                if (Pname=="owner.login"){
+                    x.set("petrochenko-pavel-a")
+                }
+
+                else if(this.base[Pname]){
                     x.set(this.base[Pname]);
                 }
             }
@@ -2089,6 +2118,13 @@ export class WebCollection {
                 })
 
             })
+            if (collection.type().displayName=="Issues"){
+                var v=[{title:"Test Issue"},{title:"Test 2"}]
+                v.forEach(x => {
+                    var r=f(proxyFunc(x, (<any>this.op).itemType, this.options))
+                });
+                resolve(null);
+            }
             collection.get();
         });
         return promise;
@@ -2101,15 +2137,24 @@ function proxyFunc(v: any, t: Type, o: any) {
             if (v[property]) {
                 return v[property];
             }
+            if (property=="patch"){
+
+            }
             var p: Property = null;
             service.properties(rs).forEach(x => {
                 if (x.id.indexOf(property) != -1) {
                     p = x;
                 }
             })
+            if( property=="patch"){
+                return  function(){
+                   // throw new Error("Missing Parameter")
+                }
+            }
             return function () {
                 return new WebCollection(<any>service.resolvedType(p.type), o,v);
             }
+
         },
     })
     return val;
@@ -2124,12 +2169,22 @@ export class ResourceProxy {
         var ll = this.v;
         var ln = this.name;
         var opts = this.options;
+        if (property=="handle"){
+           return function (f1:string,f2:string) {
+               var rs={
+                   login:f1,
+                   name: f2
+               }
+
+               return proxyFunc(rs,service.resolvedType("githubTypes_Repository"),this.options);
+           }
+        }
         return function () {
             var t: Type = null;
             Object.keys(ll.types).forEach(x => {
                 //console.log(ll.types[x]);
                 var name: string = ll.types[x].id;
-                if (name && name.toLowerCase().endsWith(ln)) {
+                if (name && name.indexOf(ln)!=-1) {
                     t = ll.types[x];
                 }
             })
